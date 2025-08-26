@@ -1,5 +1,5 @@
 const Lesson = require("../models/Lesson");
-const User = require("../models/User");
+const {User} = require("../models/User");
 const getWeekBounds = require("../utils/getWeekBounds");
 
 class ScheduleService {

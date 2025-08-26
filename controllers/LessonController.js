@@ -1,12 +1,11 @@
-const { models } = require("mongoose");
 const Lesson = require("../models/Lesson");
-const User = require("../models/User");
+const {User} = require("../models/User");
 
 class LessonController {
   static async getAvailableLessons(req, res) {
     try {
       const lessons = await Lesson.find({ status: "available" }).populate(
-        "instructor"
+        "instructor", "firstName lastName role"
       );
       res.json(lessons);
     } catch (error) {
@@ -15,11 +14,11 @@ class LessonController {
   }
 
   static async bookLesson(req, res) {
-    const { lessonId, studentName } = req.body;
+    const { lessonId, studentEmail } = req.body;
 
     try {
       const lesson = await Lesson.findById(lessonId);
-      const student = await User.findOne({ name: studentName });
+      const student = await User.findOne({ email: studentEmail });
 
       if (!lesson) {
         return res.status(404).json({ message: "Lesson not found" });
@@ -40,7 +39,7 @@ class LessonController {
       console.log("Lesson booked successfully:", {
         lessonId: lesson._id,
         studentId: student._id,
-        studentName: student.name,
+        studentName: `${student.firstName} ${student.lastName}`.trim(),
         date: lesson.date,
       });
 
@@ -54,8 +53,8 @@ class LessonController {
   static async getAllLessons(req, res) {
     try {
       const lessons = await Lesson.find({})
-        .populate("instructor")
-        .populate("student")
+        .populate("instructor", "firstName lastName role")
+        .populate("student", "firstName lastName role")
         .sort({ date: 1 });
       res.json(lessons);
     } catch (error) {

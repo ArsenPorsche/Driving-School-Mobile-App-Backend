@@ -1,24 +1,39 @@
 const mongoose = require("mongoose");
-const User = require("../models/User");
+const {User} = require("../models/User");
+require("dotenv").config({ path: "../.env" });
 
 const seedInstructors = async () => {
   try {
-    await mongoose.connect("mongodb://localhost/driving-school", {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGO_URI);
+    await User.deleteMany({});
 
-    const instructors = await User.find({ role: "instructor" });
-    if (instructors.length === 0) {
-      await User.create([
-        { name: "Jan Kowalski", role: "instructor" },
-        { name: "Piotr Nowicki", role: "instructor" },
-        { name: "Volodymyr", role: "student" },
-      ]);
-      console.log("Instructors seeded successfully");
-    } else {
-      console.log("Instructors already exist");
-    }
+    await User.create([
+      {
+        firstName: "Jan",
+        lastName: "Kowalski",
+        email: "jan.kowalski@example.com",
+        password: "password123",
+        role: "instructor",
+        phoneNumber: "48123456789",
+      },
+      {
+        firstName: "Piotr",
+        lastName: "Nowicki",
+        email: "piotr.nowicki@example.com",
+        password: "password",
+        role: "instructor",
+        phoneNumber: "48987654321",
+      },
+      {
+        firstName: "Volodymyr",
+        lastName: "Vynnychenko",
+        email: "volodymyr@example.com",
+        password: "password123",
+        role: "student",
+        phoneNumber: "48111222333",
+      },
+    ]);
+    console.log("Instructors seeded successfully");
 
     mongoose.connection.close();
   } catch (error) {
