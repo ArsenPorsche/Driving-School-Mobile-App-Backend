@@ -3,24 +3,24 @@ const User = require("../models/User");
 const getWeekBounds = require("../utils/getWeekBounds");
 
 class ScheduleService {
-  // Генерація уроків для одного тижня для одного інструктора
+  // Generating lessons for one week for one instructor
   static async generateWeekScheduleForInstructor(instructor, weekStart) {
     const lessons = [];
     let totalLessons = 0;
-    const maxLessonsPerWeek = 20; // 40 годин / 2 години = 20 уроків
+    const maxLessonsPerWeek = 20; // 40 hours / 2 hours for lesson = 20 lessons
 
-    // Генеруємо уроки поки не досягнемо 20 уроків на тиждень
+    // Generating 20 lessons
     while (totalLessons < maxLessonsPerWeek) {
-      const dayOffset = Math.floor(Math.random() * 7); // Випадковий день тижня
+      const dayOffset = Math.floor(Math.random() * 7); // Random day of week
       const currentDay = new Date(weekStart);
       currentDay.setDate(weekStart.getDate() + dayOffset);
 
-      const startHour = 8 + Math.floor(Math.random() * 11); // 8:00 - 16:00 (щоб урок закінчився до 18:00)
+      const startHour = 8 + Math.floor(Math.random() * 11); // 8:00 - 18:00 (last lesson ends at 20:00)
 
       currentDay.setHours(startHour, 0, 0, 0);
       const lessonDate = new Date(currentDay);
 
-      // Перевіряємо конфлікти з іншими уроками цього інструктора
+      // Conflict checking with the instructor's other lessons
       const hasConflict = lessons.some((existing) => {
         const existingStart = new Date(existing.date);
         const existingEnd = new Date(
@@ -29,11 +29,7 @@ class ScheduleService {
         const newStart = new Date(lessonDate);
         const newEnd = new Date(newStart.getTime() + 2 * 60 * 60 * 1000);
 
-        return (
-          (newStart >= existingStart && newStart < existingEnd) ||
-          (newEnd > existingStart && newEnd <= existingEnd) ||
-          (existingStart >= newStart && existingStart < newEnd)
-        );
+        return newStart < existingEnd && newEnd > existingStart;
       });
 
       if (!hasConflict) {
@@ -49,19 +45,16 @@ class ScheduleService {
     return lessons;
   }
 
-  // Генерація розкладу на два тижні
+  // Generating a plan for one week forward
   static async generateTwoWeekSchedule() {
     const instructors = await User.find({ role: "instructor" });
     const today = new Date();
 
-    // Отримуємо межі поточного тижня
     const { startOfWeek: thisWeekStart } = getWeekBounds(today);
 
-    // Наступний тиждень
     const nextWeekStart = new Date(thisWeekStart);
     nextWeekStart.setDate(thisWeekStart.getDate() + 7);
 
-    // Перевіряємо, чи є уроки на наступний тиждень
     const { startOfWeek: nextWeekStartBound, endOfWeek: nextWeekEndBound } =
       getWeekBounds(nextWeekStart);
     const existingNextWeekLessons = await Lesson.find({
@@ -71,15 +64,16 @@ class ScheduleService {
       },
     });
 
-    // Якщо немає уроків на наступний тиждень, генеруємо їх
+    // Generating a plan if one does not exist
     if (existingNextWeekLessons.length === 0) {
       console.log("Generating schedule for next week:", nextWeekStart);
 
       for (const instructor of instructors) {
-        const weekLessons = await ScheduleService.generateWeekScheduleForInstructor(
-          instructor,
-          nextWeekStart
-        );
+        const weekLessons =
+          await ScheduleService.generateWeekScheduleForInstructor(
+            instructor,
+            nextWeekStart
+          );
         if (weekLessons.length > 0) {
           await Lesson.insertMany(weekLessons);
         }
@@ -88,4 +82,4 @@ class ScheduleService {
   }
 }
 
-module.exports = ScheduleService
+module.exports = ScheduleService;
