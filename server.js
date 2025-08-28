@@ -10,6 +10,7 @@ app.use(cors());
 
 connectDB();
 
+app.use("/auth", require("./routes/auth"))
 app.use("/instructors", require("./routes/instructors"));
 app.use("/lessons", require("./routes/lessons"));
 

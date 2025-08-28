@@ -7,9 +7,9 @@ const passwordComplexity = require("joi-password-complexity");
 const userSchema = new mongoose.Schema({
   firstName: {type: String, required: true},
   lastName: {type: String, required: true},
-  role: { type: String, enum: ["student", "instructor"] },
+  role: { type: String, enum: ["student", "instructor", "admin"], required: true },
   phoneNumber: {type: String, required: true},
-  email: {type: String, required: true},
+  email: {type: String, required: true, unique: true},
   password: {type: String, required: true}
 });
 
@@ -35,16 +35,27 @@ userSchema.methods.generateAuthToken = function () {
 
 const User = mongoose.model("User", userSchema);
 
-const validate = (data) => {
+const validateRegister = (data) => {
   const schema = Joi.object({
     firstName: Joi.string().required().label("First Name"),
     lastName: Joi.string().required().label("Last Name"),
-    role: Joi.string().pattern("/^[1-9]\d{1,14}$/").valid("student", "instructor").required().label("Role"),
-    phoneNumber: Joi.string().required().label("Phone Number"),
+    role: Joi.string().valid("student", "instructor", "admin").required().label("Role"),
+    phoneNumber: Joi.string()
+      .pattern(new RegExp("^[1-9]\\d{1,14}$"))
+      .required()
+      .label("Phone Number"),
     email: Joi.string().email().required().label("Email"),
     password: passwordComplexity().required().label("Password"),
-  })
+  });
   return schema.validate(data);
-}
+};
 
-module.exports = {User, validate}
+const validateLogin = (data) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required().label("Email"),
+    password: Joi.string().required().label("Password"),
+  });
+  return schema.validate(data);
+};
+
+module.exports = {User, validateRegister, validateLogin}
