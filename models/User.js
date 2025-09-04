@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   firstName: {type: String, required: true},
   lastName: {type: String, required: true},
   role: { type: String, enum: ["student", "instructor", "admin"], required: true },
-  phoneNumber: {type: String, required: true},
+  phoneNumber: {type: String, required: true, unique: true},
   email: {type: String, required: true, unique: true},
   password: {type: String, required: true}
 });
@@ -41,7 +41,7 @@ const validateRegister = (data) => {
     lastName: Joi.string().required().label("Last Name"),
     role: Joi.string().valid("student", "instructor", "admin").required().label("Role"),
     phoneNumber: Joi.string()
-      .pattern(new RegExp("^[1-9]\\d{1,14}$"))
+      .pattern(new RegExp("^[1-9]\\d{10,14}$"))
       .required()
       .label("Phone Number"),
     email: Joi.string().email().required().label("Email"),

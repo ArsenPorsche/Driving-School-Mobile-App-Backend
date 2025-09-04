@@ -23,6 +23,7 @@ class AuthController {
           id: user._id,
           name: `${user.firstName} ${user.lastName}`.trim(),
           role: user.role,
+          email: user.email
         },
       });
     } catch (error) {
@@ -36,12 +37,31 @@ class AuthController {
       if (error)
         return res.status(400).json({ message: error.details[0].message });
 
-      const { firstName, lastName, role, phoneNumber, email, password } = req.body;
+      const { firstName, lastName, role, phoneNumber, email, password } =
+        req.body;
 
-      const existingUser = await User.findOne({ email });
-      if (existingUser) return res.status(400).json({ message: "Email already exists" });
+      const existingUser = await User.findOne({
+        $or: [{ email }, { phoneNumber }],
+      });
+      if (existingUser) {
+        if (existingUser.email === email) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        if (existingUser.phoneNumber === phoneNumber) {
+          return res
+            .status(400)
+            .json({ message: "Phone number already exists" });
+        }
+      }
 
-      const user = new User({firstName, lastName, role, phoneNumber, email, password})
+      const user = new User({
+        firstName,
+        lastName,
+        role,
+        phoneNumber,
+        email,
+        password,
+      });
       await user.save();
 
       const token = user.generateAuthToken();
@@ -59,4 +79,4 @@ class AuthController {
   }
 }
 
-module.exports = AuthController
+module.exports = AuthController;
