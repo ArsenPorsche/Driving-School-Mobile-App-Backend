@@ -1,4 +1,5 @@
 const { User, validateRegister, validateLogin } = require("../models/User");
+const jwt = require("jsonwebtoken");
 
 class AuthController {
   static async login(req, res) {
@@ -17,8 +18,11 @@ class AuthController {
         return res.status(400).json({ message: "Invalid email or password" });
 
       const token = user.generateAuthToken();
+      const refreshToken = user.generateRefreshToken();
+      await user.save()
       res.json({
         token,
+        refreshToken,
         user: {
           id: user._id,
           name: `${user.firstName} ${user.lastName}`.trim(),
@@ -75,6 +79,41 @@ class AuthController {
       });
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) return res.sendStatus(401);
+
+      const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+      const user = await User.findById(decoded._id);
+
+      if (!user) return res.sendStatus(403);
+
+      const tokenRecord = user.refreshTokens.find((t) => t.token === refreshToken && t.expiry > new Date());
+      if (!tokenRecord) return res.status(403).json({ message: "Invalid or expired refresh token" });
+
+      
+      user.refreshTokens = user.refreshTokens.filter((t) => t.token !== refreshToken);
+
+      const newAccessToken = user.generateAuthToken();
+      const newRefreshToken = user.generateRefreshToken();
+      await user.save();
+
+      res.json({
+        token: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: {
+          id: user._id,
+          name: `${user.firstName} ${user.lastName}`.trim(),
+          role: user.role,
+          email: user.email,
+        },
+      });
+    } catch (error) {
+      res.status(403).json({ message: "Refresh token failed", error: error.message });
     }
   }
 }
