@@ -12,7 +12,7 @@ const seedInstructors = async () => {
         firstName: "Jan",
         lastName: "Kowalski",
         email: "jan.kowalski@example.com",
-        password: "password123",
+        password: "password",
         role: "instructor",
         phoneNumber: "48123456789",
       },
@@ -25,12 +25,28 @@ const seedInstructors = async () => {
         phoneNumber: "48987654321",
       },
       {
+        firstName: "Mateusz",
+        lastName: "Sawicki",
+        email: "mateusz@example.com",
+        password: "password",
+        role: "instructor",
+        phoneNumber: "48987654320",
+      },
+      {
         firstName: "Volodymyr",
         lastName: "Vynnychenko",
         email: "volodymyr@example.com",
-        password: "password123",
+        password: "password",
         role: "student",
         phoneNumber: "48111222333",
+      },
+      {
+        firstName: "Steve",
+        lastName: "Jobs",
+        email: "steve@example.com",
+        password: "password",
+        role: "admin",
+        phoneNumber: "48333222111",
       },
     ]);
     console.log("Instructors seeded successfully");

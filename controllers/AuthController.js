@@ -68,9 +68,7 @@ class AuthController {
       });
       await user.save();
 
-      const token = user.generateAuthToken();
       res.status(201).json({
-        token,
         user: {
           id: user._id,
           name: `${user.firstName} ${user.lastName}`.trim(),
