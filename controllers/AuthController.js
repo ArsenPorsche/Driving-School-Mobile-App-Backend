@@ -26,8 +26,6 @@ class AuthController {
         user: {
           id: user._id,
           name: `${user.firstName} ${user.lastName}`.trim(),
-          role: user.role,
-          email: user.email
         },
       });
     } catch (error) {
@@ -72,11 +70,30 @@ class AuthController {
         user: {
           id: user._id,
           name: `${user.firstName} ${user.lastName}`.trim(),
-          role: user.role,
         },
       });
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async validateToken(req, res){
+    try {
+      const {token} = req.body
+      if (!token) return res.status(401).json({ message: "No token provided" });
+      
+      const decoded = jwt.verify(token, process.env.JWTPRIVATEKEY)
+      const user = await User.findById(decoded._id)
+
+      if (!user) return res.status(403).json({ message: "Invalid user" });
+
+      res.json({
+        valid: true,
+        role: user.role,
+        id: user._id,
+      });
+    } catch (error) {
+      res.status(401).json({ message: "Invalid token", error: error.message });
     }
   }
 
@@ -103,12 +120,6 @@ class AuthController {
       res.json({
         token: newAccessToken,
         refreshToken: newRefreshToken,
-        user: {
-          id: user._id,
-          name: `${user.firstName} ${user.lastName}`.trim(),
-          role: user.role,
-          email: user.email,
-        },
       });
     } catch (error) {
       res.status(403).json({ message: "Refresh token failed", error: error.message });

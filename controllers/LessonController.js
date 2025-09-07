@@ -14,11 +14,11 @@ class LessonController {
   }
 
   static async bookLesson(req, res) {
-    const { lessonId, studentEmail } = req.body;
+    const { lessonId, studentId } = req.body;
 
     try {
       const lesson = await Lesson.findById(lessonId);
-      const student = await User.findOne({ email: studentEmail });
+      const student = await User.findById(studentId);
 
       if (!lesson) {
         return res.status(404).json({ message: "Lesson not found" });
