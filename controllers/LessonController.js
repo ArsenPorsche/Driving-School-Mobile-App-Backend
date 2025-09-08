@@ -1,11 +1,12 @@
 const Lesson = require("../models/Lesson");
-const {User} = require("../models/User");
+const { User } = require("../models/User");
 
 class LessonController {
   static async getAvailableLessons(req, res) {
     try {
       const lessons = await Lesson.find({ status: "available" }).populate(
-        "instructor", "firstName lastName role"
+        "instructor",
+        "firstName lastName role"
       );
       res.json(lessons);
     } catch (error) {
@@ -61,6 +62,19 @@ class LessonController {
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
+
+  static async getInstructorsLessons(req, res) {
+    try {
+      const { instructorId } = req.query;
+      const lessons = await Lesson.find({ instructor: instructorId })
+        .populate("instructor", "firstName lastName role")
+        .populate("student", "firstName lastName role")
+        .sort({ date: 1 });
+      res.json(lessons);
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
 }
 
-module.exports = LessonController
+module.exports = LessonController;
