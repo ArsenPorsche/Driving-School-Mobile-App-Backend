@@ -92,8 +92,9 @@ class LessonController {
       nextWeekStart.setDate(thisWeekStart.getDate() + 7);
 
       let lessonDate = null;
-
-      while (true) {
+      let attempt = 0
+      while (attempt < 100) {
+        attempt++
         const dayOffset = Math.floor(Math.random() * 7); // Random day of week
         const currentDay = new Date(nextWeekStart);
         currentDay.setDate(nextWeekStart.getDate() + dayOffset);
