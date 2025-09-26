@@ -16,7 +16,9 @@ const userSchema = new mongoose.Schema({
   phoneNumber: {type: String, required: true, unique: true},
   email: {type: String, required: true, unique: true},
   password: {type: String, required: true},
-  refreshTokens: [refreshTokenSchema]
+  refreshTokens: [refreshTokenSchema],
+  purchasedLessons: {type: Number, default: 0},
+  purchasedExams: {type: Number, default: 0},
 });
 
 userSchema.pre("save", async function (next) {
