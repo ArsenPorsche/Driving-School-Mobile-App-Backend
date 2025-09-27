@@ -16,7 +16,8 @@ class LessonController {
   }
 
   static async bookLesson(req, res) {
-    const { lessonId, studentId } = req.body;
+    const { lessonId } = req.body;
+    const studentId = req.user?._id;
 
     try {
       const lesson = await Lesson.findById(lessonId);
@@ -66,7 +67,7 @@ class LessonController {
 
   static async getInstructorsLessons(req, res) {
     try {
-      const { instructorId } = req.query;
+      const instructorId = req.user?._id;
       const lessons = await Lesson.find({ instructor: instructorId })
         .populate("instructor", "firstName lastName role")
         .populate("student", "firstName lastName role")
@@ -79,7 +80,8 @@ class LessonController {
 
   static async getLessonOffer(req, res) {
     try {
-      const { instructorId } = req.query;
+      const instructorId = req.user?._id;
+
       const lessons = await Lesson.find({ instructor: instructorId })
         .populate("instructor", "firstName lastName role")
         .populate("student", "firstName lastName role")
@@ -163,67 +165,6 @@ class LessonController {
       });
     } catch (error) {
       console.log("Server error details:", error.stack); 
-      res.status(500).json({ message: "Server error", error: error.message });
-    }
-  }
-
-  static async purchaseItems(req, res) {
-    try {
-      const { userId, items } = req.body;
-
-      if (!Array.isArray(items)) {
-        return res.status(400).json({ error: "Items must be an array" });
-      }
-
-      let totalLessons = 0;
-      let totalExams = 0;
-
-      for (const item of items) {
-        if (!item || typeof item !== 'object' || !item.type || typeof item.quantity !== 'number') {
-          return res.status(400).json({ error: "Each item must have type and quantity" });
-        }
-        
-        if (item.type === "lesson") {
-          totalLessons += item.quantity;
-        } else if (item.type === "exam") {
-          totalExams += item.quantity;
-        }
-      }
-
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        {
-          $inc: {
-            purchasedLessons: totalLessons,
-            purchasedExams: totalExams
-          }
-        },
-        { new: true }
-      );
-
-      res.json({
-        message: "Purchase successful",
-        purchasedLessons: updatedUser.purchasedLessons,
-        purchasedExams: updatedUser.purchasedExams
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
-
-  static async getPurchasedLessons(req, res) {
-    try {
-      const { userId } = req.query;
-      const user = await User.findById(userId)
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      const lessons = {
-        purchasedLessons: user.purchasedLessons,
-        purchasedExams: user.purchasedExams
-      };
-      res.json(lessons);
-    } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
