@@ -39,6 +39,9 @@ class LessonController {
       lesson.status = "booked";
       await lesson.save();
 
+      student.purchasedLessons = student.purchasedLessons - 1;
+      await student.save();
+
       console.log("Lesson booked successfully:", {
         lessonId: lesson._id,
         studentId: student._id,
