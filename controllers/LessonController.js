@@ -5,10 +5,11 @@ const getWeekBounds = require("../utils/getWeekBounds");
 class LessonController {
   static async getAvailableLessons(req, res) {
     try {
-      const lessons = await Lesson.find({ status: "available" }).populate(
-        "instructor",
-        "firstName lastName role"
-      );
+      const { type = "lesson" } = req.query; // Add type filter
+      const lessons = await Lesson.find({ 
+        status: "available",
+        type: type 
+      }).populate("instructor", "firstName lastName role");
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -35,21 +36,35 @@ class LessonController {
         return res.status(400).json({ message: "Lesson not available" });
       }
 
+      // Check balance based on lesson type
+      if (lesson.type === "lesson" && student.purchasedLessons <= 0) {
+        return res.status(400).json({ message: "No purchased lessons available" });
+      }
+      
+      if (lesson.type === "exam" && student.purchasedExams <= 0) {
+        return res.status(400).json({ message: "No purchased exams available" });
+      }
+
       lesson.student = student._id;
       lesson.status = "booked";
       await lesson.save();
 
-      student.purchasedLessons = student.purchasedLessons - 1;
+      if (lesson.type === "lesson") {
+        student.purchasedLessons = student.purchasedLessons - 1;
+      } else if (lesson.type === "exam") {
+        student.purchasedExams = student.purchasedExams - 1;
+      }
       await student.save();
 
-      console.log("Lesson booked successfully:", {
+      console.log(`${lesson.type} booked successfully:`, {
         lessonId: lesson._id,
         studentId: student._id,
         studentName: `${student.firstName} ${student.lastName}`.trim(),
         date: lesson.date,
+        type: lesson.type,
       });
 
-      res.json({ message: "Lesson booked successfully", lesson });
+      res.json({ message: `${lesson.type} booked successfully`, lesson });
     } catch (error) {
       console.error("Error booking lesson:", error);
       res.status(500).json({ message: "Server error", error: error.message });
