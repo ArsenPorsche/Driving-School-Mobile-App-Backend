@@ -96,6 +96,22 @@ class LessonController {
     }
   }
 
+  static async getStudentLessons(req, res) {
+    try {
+      const studentId = req.user?._id;
+      const lessons = await Lesson.find({ 
+        student: studentId,
+        status: "booked" 
+      })
+        .populate("instructor", "firstName lastName role")
+        .populate("student", "firstName lastName role")
+        .sort({ date: 1 });
+      res.json(lessons);
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
   static async getLessonOffer(req, res) {
     try {
       const instructorId = req.user?._id;
@@ -183,6 +199,66 @@ class LessonController {
       });
     } catch (error) {
       console.log("Server error details:", error.stack); 
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async cancelLesson(req, res) {
+    try {
+      const { lessonId } = req.body;
+      const studentId = req.user?._id;
+
+      const lesson = await Lesson.findById(lessonId);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+
+      if (lesson.student.toString() !== studentId.toString()) {
+        return res.status(403).json({ message: "Not authorized to cancel this lesson" });
+      }
+
+      if (lesson.status !== "booked") {
+        return res.status(400).json({ message: "Lesson is not booked" });
+      }
+
+      // Check if cancellation is at least 24 hours before lesson
+      const lessonDate = new Date(lesson.date);
+      const now = new Date();
+      const hoursDifference = (lessonDate - now) / (1000 * 60 * 60);
+
+      const refundBalance = hoursDifference >= 24;
+
+      // Update lesson status
+      lesson.status = "available";
+      lesson.student = undefined;
+      await lesson.save();
+
+      // Refund balance if cancelled 24+ hours in advance
+      if (refundBalance) {
+        const student = await User.findById(studentId);
+        if (lesson.type === "lesson") {
+          student.purchasedLessons += 1;
+        } else if (lesson.type === "exam") {
+          student.purchasedExams += 1;
+        }
+        await student.save();
+      }
+
+      console.log(`${lesson.type} cancelled:`, {
+        lessonId: lesson._id,
+        studentId,
+        refunded: refundBalance,
+        hoursBefore: hoursDifference.toFixed(1),
+      });
+
+      res.json({ 
+        message: `${lesson.type} cancelled successfully`,
+        refunded: refundBalance,
+        hoursBefore: hoursDifference.toFixed(1),
+        lesson 
+      });
+    } catch (error) {
+      console.error("Error cancelling lesson:", error);
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
