@@ -5,7 +5,7 @@ const getWeekBounds = require("../utils/getWeekBounds");
 class LessonController {
   static async getAvailableLessons(req, res) {
     try {
-      const { type = "lesson" } = req.query; // Add type filter
+      const { type = "lesson" } = req.query; 
       const lessons = await Lesson.find({ 
         status: "available",
         type: type 
@@ -36,7 +36,6 @@ class LessonController {
         return res.status(400).json({ message: "Lesson not available" });
       }
 
-      // Check balance based on lesson type
       if (lesson.type === "lesson" && student.purchasedLessons <= 0) {
         return res.status(400).json({ message: "No purchased lessons available" });
       }
@@ -142,7 +141,6 @@ class LessonController {
         const newStart = new Date(currentDay);
         const newEnd = new Date(newStart.getTime() + 2 * 60 * 60 * 1000);
 
-        // Conflict checking with the instructor's other lessons
         const hasConflict = lessons.some((existing) => {
           const existingStart = new Date(existing.date);
           const existingEnd = new Date(
@@ -221,19 +219,19 @@ class LessonController {
         return res.status(400).json({ message: "Lesson is not booked" });
       }
 
-      // Check if cancellation is at least 24 hours before lesson
+      
       const lessonDate = new Date(lesson.date);
       const now = new Date();
       const hoursDifference = (lessonDate - now) / (1000 * 60 * 60);
 
       const refundBalance = hoursDifference >= 24;
 
-      // Update lesson status
+      
       lesson.status = "available";
       lesson.student = undefined;
       await lesson.save();
 
-      // Refund balance if cancelled 24+ hours in advance
+      
       if (refundBalance) {
         const student = await User.findById(studentId);
         if (lesson.type === "lesson") {

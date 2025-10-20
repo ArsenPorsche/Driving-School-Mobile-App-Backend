@@ -3,7 +3,6 @@ const { User } = require("../models/User");
 const getWeekBounds = require("../utils/getWeekBounds");
 
 class ScheduleService {
-  // Universal generation of lessons/exams for one instructor
   static async generateWeekScheduleForInstructor(
     instructor,
     weekStart,
@@ -19,16 +18,15 @@ class ScheduleService {
     while (totalItems < count && attempts < maxAttempts) {
       attempts++;
 
-      const dayOffset = Math.floor(Math.random() * 7); // Random day of week
+      const dayOffset = Math.floor(Math.random() * 7); 
       const currentDay = new Date(weekStart);
       currentDay.setDate(weekStart.getDate() + dayOffset);
 
-      const startHour = 8 + Math.floor(Math.random() * 11); // 8:00 - 18:00 (last slot ends at 20:00)
+      const startHour = 8 + Math.floor(Math.random() * 11); 
 
       currentDay.setHours(startHour, 0, 0, 0);
       const itemDate = new Date(currentDay);
 
-      // Check conflicts with existing items
       const hasConflict = [...items, ...existingItems].some((existing) => {
         const existingStart = new Date(existing.date);
         const existingEnd = new Date(
@@ -49,7 +47,6 @@ class ScheduleService {
           duration: 2,
         };
 
-        // Additional fields for exams
         if (type === "exam") {
           item.examType = "internal";
         }
@@ -62,7 +59,6 @@ class ScheduleService {
     return items;
   }
 
-  // Generating a plan for one week forward
   static async generateTwoWeekSchedule() {
     const instructors = await User.find({ role: "instructor" });
     const today = new Date();
@@ -81,12 +77,10 @@ class ScheduleService {
       },
     });
 
-    // Generating a plan if one does not exist
     if (existingNextWeekLessons.length === 0) {
       console.log("Generating schedule for next week:", nextWeekStart);
 
       for (const instructor of instructors) {
-        // Generate 16 lessons
         const weekLessons =
           await ScheduleService.generateWeekScheduleForInstructor(
             instructor,
@@ -95,7 +89,6 @@ class ScheduleService {
             16
           );
 
-        // Generate 4 exams, passing lessons to avoid conflicts
         const weekExams =
           await ScheduleService.generateWeekScheduleForInstructor(
             instructor,
@@ -105,7 +98,6 @@ class ScheduleService {
             weekLessons
           );
 
-        // Save lessons and exams
         const allScheduleItems = [...weekLessons, ...weekExams];
         if (allScheduleItems.length > 0) {
           await Lesson.insertMany(allScheduleItems);

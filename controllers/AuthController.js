@@ -1,5 +1,6 @@
-const { User, validateRegister, validateLogin } = require("../models/User");
+const { User, validateRegister, validateLogin, validateUpdateProfile } = require("../models/User");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 class AuthController {
   static async login(req, res) {
@@ -123,6 +124,71 @@ class AuthController {
       });
     } catch (error) {
       res.status(403).json({ message: "Refresh token failed", error: error.message });
+    }
+  }
+
+  static async getProfile(req, res) {
+    try {
+      const user = await User.findById(req.user._id).select('-password -refreshTokens');
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async updateProfile(req, res) {
+    try {
+      const { error } = validateUpdateProfile(req.body);
+      if (error) {
+        return res.status(400).json({ message: error.details[0].message });
+      }
+
+      const { phoneNumber, currentPassword, newPassword } = req.body;
+      const user = await User.findById(req.user._id);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      
+      if (phoneNumber) {
+        
+        const existingUser = await User.findOne({ 
+          phoneNumber, 
+          _id: { $ne: req.user._id } 
+        });
+        if (existingUser) {
+          return res.status(400).json({ message: "Phone number already exists" });
+        }
+        user.phoneNumber = phoneNumber;
+      }
+
+      
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ message: "Current password is required" });
+        }
+        
+        const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+        if (!isCurrentPasswordValid) {
+          return res.status(400).json({ message: "Current password is incorrect" });
+        }
+        
+        user.password = newPassword;
+      }
+
+      await user.save();
+      
+      const updatedUser = await User.findById(req.user._id).select('-password -refreshTokens');
+      res.json({
+        message: "Profile updated successfully",
+        user: updatedUser
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
     }
   }
 }

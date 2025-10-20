@@ -60,7 +60,7 @@ const validateRegister = (data) => {
     lastName: Joi.string().required().label("Last Name"),
     role: Joi.string().valid("student", "instructor", "admin").required().label("Role"),
     phoneNumber: Joi.string()
-      .pattern(new RegExp("^[1-9]\\d{10,14}$"))
+      .pattern(new RegExp("^[1-9]\\d{10}$"))
       .required()
       .label("Phone Number"),
     email: Joi.string().email().required().label("Email"),
@@ -77,4 +77,16 @@ const validateLogin = (data) => {
   return schema.validate(data);
 };
 
-module.exports = {User, validateRegister, validateLogin}
+const validateUpdateProfile = (data) => {
+  const schema = Joi.object({
+    phoneNumber: Joi.string()
+      .pattern(new RegExp("^[1-9]\\d{10}$"))
+      .optional()
+      .label("Phone Number"),
+    currentPassword: Joi.string().optional().label("Current Password"),
+    newPassword: passwordComplexity().optional().label("New Password"),
+  });
+  return schema.validate(data);
+};
+
+module.exports = {User, validateRegister, validateLogin, validateUpdateProfile}

@@ -90,7 +90,6 @@ async function seedProducts() {
   }
 }
 
-// Запуск якщо викликано напряму
 if (require.main === module) {
   seedProducts();
 }
