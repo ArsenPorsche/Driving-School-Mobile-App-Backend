@@ -165,20 +165,59 @@ class LessonController {
     try {
       const { oldLessonId, newDate } = req.body;
 
-      const oldLesson = await Lesson.findById(oldLessonId);
+      const oldLesson = await Lesson.findById(oldLessonId)
+        .populate("instructor", "firstName lastName pushTokens role")
+        .populate("student", "firstName lastName pushTokens role");
       if (!oldLesson) {
         return res.status(404).json({ message: "Lesson not found" });
       }
+      const wasBooked = oldLesson.status === "booked" && oldLesson.student;
+      
+      console.log("[changeLesson] oldLesson status:", oldLesson.status, "wasBooked:", wasBooked);
+      
+      if (wasBooked) {
+        const student = await User.findById(oldLesson.student._id);
+        if (student) {
+          if (oldLesson.type === "lesson") {
+            student.purchasedLessons += 1;
+          } else if (oldLesson.type === "exam") {
+            student.purchasedExams += 1;
+          }
+          await student.save();
+          console.log("[changeLesson] Refunded student, new balance:", {
+            lessons: student.purchasedLessons,
+            exams: student.purchasedExams
+          });
+        }
+      }
+      
       oldLesson.status = "canceled";
       await oldLesson.save();
 
-      
+      // Create new lesson as available (not booked)
       const newLesson = new Lesson({
         date: new Date(newDate),
         instructor: oldLesson.instructor,
         status: "available",
+        type: oldLesson.type,
+        duration: oldLesson.duration,
       });
       await newLesson.save();
+
+      console.log("[changeLesson] newLesson created, status:", newLesson.status);
+
+      if (wasBooked) {
+        
+        try {
+          const { notifyLessonChanged } = require("../services/notificationService");
+          await notifyLessonChanged(oldLesson, newLesson, oldLesson.instructor, oldLesson.student);
+          console.log("[changeLesson] Notification sent successfully");
+        } catch (e) {
+          console.log("[changeLesson] Notification error:", e.message, e.stack);
+        }
+      } else {
+        console.log("[changeLesson] No notification sent. wasBooked:", wasBooked, "role:", req.user?.role);
+      }
 
       
       res.json({

@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
   refreshTokens: [refreshTokenSchema],
   purchasedLessons: {type: Number, default: 0},
   purchasedExams: {type: Number, default: 0},
+  pushTokens: { type: [String], default: [] },
 });
 
 userSchema.pre("save", async function (next) {

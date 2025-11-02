@@ -8,6 +8,7 @@ router.post("/login", AuthController.login);
 router.post("/register", authMiddleware("admin"), AuthController.register);
 router.post("/refresh-token", AuthController.refreshToken);
 router.post("/validate-token", AuthController.validateToken);
+router.post("/push-token", authMiddleware(), AuthController.registerPushToken);
 router.get("/profile", authMiddleware(), AuthController.getProfile);
 router.put("/profile", authMiddleware(), AuthController.updateProfile);
 
