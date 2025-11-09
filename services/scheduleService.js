@@ -78,7 +78,6 @@ class ScheduleService {
     });
 
     if (existingNextWeekLessons.length === 0) {
-      console.log("Generating schedule for next week:", nextWeekStart);
 
       for (const instructor of instructors) {
         const weekLessons =
@@ -101,9 +100,6 @@ class ScheduleService {
         const allScheduleItems = [...weekLessons, ...weekExams];
         if (allScheduleItems.length > 0) {
           await Lesson.insertMany(allScheduleItems);
-          console.log(
-            `Generated ${weekLessons.length} lessons and ${weekExams.length} exams for instructor ${instructor.firstName}`
-          );
         }
       }
     }

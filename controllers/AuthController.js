@@ -195,7 +195,6 @@ class AuthController {
   static async registerPushToken(req, res) {
     try {
       const { token } = req.body;
-      console.log("[registerPushToken] user:", req.user?._id, "token:", token);
       if (!token) {
         return res.status(400).json({ message: "Push token is required" });
       }
@@ -204,10 +203,9 @@ class AuthController {
         { $addToSet: { pushTokens: token } },
         { new: true }
       );
-      console.log("[registerPushToken] Updated user:", updated?._id, updated?.pushTokens);
       res.json({ ok: true });
     } catch (error) {
-      console.log("[registerPushToken] Error:", error.message);
+      console.log("Push token registration error:", error.message);
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }

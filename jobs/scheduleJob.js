@@ -3,28 +3,33 @@ const { generateTwoWeekSchedule } = require("../services/scheduleService");
 const LessonStatusService = require("../services/lessonStatusService");
 
 const scheduleJob = () => {
-  cron.schedule("* * * * *", () => { //0 0 * * 1
-    console.log("Generating schedule...");
-    generateTwoWeekSchedule();
+  cron.schedule("* * * * *", async () => { //0 0 * * 1
+    try {
+      await generateTwoWeekSchedule();
+    } catch (error) {
+      console.error("Error generating schedule:", error.message);
+    }
   });
 
   cron.schedule("* * * * *", async () => {
-    console.log("Updating expired lesson statuses...");
     try {
       await LessonStatusService.updateExpiredBookedLessons();
     } catch (error) {
-      console.error("Error updating lesson statuses:", error);
+      console.error("Error updating lesson statuses:", error.message);
+      // Don't crash the server, just log and continue
     }
   });
 
   cron.schedule("* * * * *", async () => {
-    console.log("Cleaning up old available lesson slots...");
     try {
       await LessonStatusService.cleanupOldAvailableSlots();
     } catch (error) {
-      console.error("Error cleaning up old slots:", error);
+      console.error("Error cleaning up old slots:", error.message);
+      // Don't crash the server, just log and continue
     }
   });
+
+  console.log("Scheduled jobs initialized successfully");
 };
 
 module.exports = scheduleJob;

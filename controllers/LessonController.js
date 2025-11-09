@@ -55,17 +55,8 @@ class LessonController {
       }
       await student.save();
 
-      console.log(`${lesson.type} booked successfully:`, {
-        lessonId: lesson._id,
-        studentId: student._id,
-        studentName: `${student.firstName} ${student.lastName}`.trim(),
-        date: lesson.date,
-        type: lesson.type,
-      });
-
       res.json({ message: `${lesson.type} booked successfully`, lesson });
     } catch (error) {
-      console.error("Error booking lesson:", error);
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
@@ -173,7 +164,6 @@ class LessonController {
       }
       const wasBooked = oldLesson.status === "booked" && oldLesson.student;
       
-      console.log("[changeLesson] oldLesson status:", oldLesson.status, "wasBooked:", wasBooked);
       
       if (wasBooked) {
         const student = await User.findById(oldLesson.student._id);
@@ -184,10 +174,6 @@ class LessonController {
             student.purchasedExams += 1;
           }
           await student.save();
-          console.log("[changeLesson] Refunded student, new balance:", {
-            lessons: student.purchasedLessons,
-            exams: student.purchasedExams
-          });
         }
       }
       
@@ -204,19 +190,15 @@ class LessonController {
       });
       await newLesson.save();
 
-      console.log("[changeLesson] newLesson created, status:", newLesson.status);
 
       if (wasBooked) {
         
         try {
           const { notifyLessonChanged } = require("../services/notificationService");
           await notifyLessonChanged(oldLesson, newLesson, oldLesson.instructor, oldLesson.student);
-          console.log("[changeLesson] Notification sent successfully");
         } catch (e) {
-          console.log("[changeLesson] Notification error:", e.message, e.stack);
+          console.log("Notification error:", e.message);
         }
-      } else {
-        console.log("[changeLesson] No notification sent. wasBooked:", wasBooked, "role:", req.user?.role);
       }
 
       
@@ -235,7 +217,6 @@ class LessonController {
         },
       });
     } catch (error) {
-      console.log("Server error details:", error.stack); 
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
@@ -244,13 +225,21 @@ class LessonController {
     try {
       const { lessonId } = req.body;
       const studentId = req.user?._id;
-
-      const lesson = await Lesson.findById(lessonId);
+      const lesson = await Lesson.findById(lessonId)
+        .populate("instructor", "firstName lastName pushTokens role")
+        .populate("student", "firstName lastName pushTokens role");
       if (!lesson) {
         return res.status(404).json({ message: "Lesson not found" });
       }
 
-      if (lesson.student.toString() !== studentId.toString()) {
+      // Ensure the requester is the student who booked this lesson
+      const lessonStudentIdStr = lesson?.student?._id
+        ? lesson.student._id.toString()
+        : typeof lesson?.student?.toString === "function"
+        ? lesson.student.toString()
+        : null;
+
+      if (!lessonStudentIdStr || lessonStudentIdStr !== studentId.toString()) {
         return res.status(403).json({ message: "Not authorized to cancel this lesson" });
       }
 
@@ -281,12 +270,18 @@ class LessonController {
         await student.save();
       }
 
-      console.log(`${lesson.type} cancelled:`, {
-        lessonId: lesson._id,
-        studentId,
-        refunded: refundBalance,
-        hoursBefore: hoursDifference.toFixed(1),
-      });
+
+      // notify instructor about student cancellation
+      try {
+        const { notifyLessonCanceledByStudent } = require("../services/notificationService");
+        const student = lesson.student && lesson.student._id ? lesson.student : await User.findById(studentId);
+        const instructor = lesson.instructor && lesson.instructor._id ? lesson.instructor : await User.findById(lesson.instructor);
+        if (student && instructor) {
+          await notifyLessonCanceledByStudent(lesson, student, instructor);
+        }
+      } catch (e) {
+        console.log('Notification error:', e.message);
+      }
 
       res.json({ 
         message: `${lesson.type} cancelled successfully`,
@@ -295,7 +290,6 @@ class LessonController {
         lesson 
       });
     } catch (error) {
-      console.error("Error cancelling lesson:", error);
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }

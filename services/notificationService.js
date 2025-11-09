@@ -3,15 +3,12 @@ const Notification = require("../models/Notification");
 const expo = new Expo();
 
 async function sendToTokens(tokens, message) {
-  console.log("[notificationService] sendToTokens called with", tokens?.length, "tokens");
   if (!Array.isArray(tokens) || tokens.length === 0) {
-    console.log("[notificationService] No tokens to send to");
     return;
   }
   const messages = [];
   for (const token of tokens) {
     if (!Expo.isExpoPushToken(token)) {
-      console.log("[notificationService] Invalid token:", token);
       continue;
     }
     messages.push({
@@ -22,24 +19,18 @@ async function sendToTokens(tokens, message) {
       data: message.data || {},
     });
   }
-  console.log("[notificationService] Prepared", messages.length, "messages");
   const chunks = expo.chunkPushNotifications(messages);
   for (const chunk of chunks) {
     try {
-      const receipts = await expo.sendPushNotificationsAsync(chunk);
-      console.log("[notificationService] Sent chunk, receipts:", receipts);
+      await expo.sendPushNotificationsAsync(chunk);
     } catch (e) {
-      console.log("[notificationService] Error sending chunk:", e.message);
+      console.log("Push send error:", e.message);
     }
   }
 }
 
 async function notifyLessonChanged(oldLesson, newLesson, instructor, student) {
-  console.log("[notificationService] notifyLessonChanged called");
-  console.log("[notificationService] student:", student?._id);
-  
   if (!student?._id) {
-    console.log("[notificationService] No student provided");
     return;
   }
 
@@ -65,7 +56,8 @@ async function notifyLessonChanged(oldLesson, newLesson, instructor, student) {
     oldLessonId: String(oldLesson._id), 
     newLessonId: String(newLesson._id), 
     type: oldLesson.type, 
-    reason: "instructor_change" 
+    reason: "instructor_change",
+    sender: "instructor",
   };
 
   try {
@@ -77,17 +69,53 @@ async function notifyLessonChanged(oldLesson, newLesson, instructor, student) {
       type: "lesson_canceled",
       data,
     });
-    console.log("[notificationService] Notification saved to DB");
   } catch (e) {
-    console.log("[notificationService] Error saving to DB:", e.message);
+    console.log("Notification save error:", e.message);
   }
 
   if (student?.pushTokens?.length) {
-    console.log("[notificationService] Sending push notification to", student.pushTokens.length, "tokens");
     await sendToTokens(student.pushTokens, { title, body, data });
-  } else {
-    console.log("[notificationService] No push tokens, skipping push notification");
   }
 }
 
-module.exports = { notifyLessonChanged };
+async function notifyLessonCanceledByStudent(lesson, student, instructor) {
+  try {
+
+    const typeLabel = lesson.type === 'exam' ? 'Exam' : 'Lesson';
+    const when = new Date(lesson.date).toLocaleString('pl-PL', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
+
+    const title = `${typeLabel} canceled by student`;
+    const body = `${student.firstName || ''} ${student.lastName || ''} cancelled their ${typeLabel.toLowerCase()} scheduled on ${when}.`;
+    const data = {
+      oldLessonId: String(lesson._id),
+      type: lesson.type,
+      reason: 'student_cancel',
+      sender: 'student',
+    };
+
+      // Save notification for instructor (user = instructor, instructor = student who cancelled)
+    try {
+      await Notification.create({
+        user: instructor._id,
+          instructor: student._id,
+        title,
+        body,
+        type: 'lesson_canceled',
+        data,
+      });
+    } catch (e) {
+      console.log('Notification save error:', e.message);
+    }
+
+    // Send push to instructor if tokens
+    if (instructor?.pushTokens?.length) {
+      await sendToTokens(instructor.pushTokens, { title, body, data });
+    }
+  } catch (e) {
+    console.log('notifyLessonCanceledByStudent error:', e.message);
+  }
+}
+
+module.exports = { notifyLessonChanged, notifyLessonCanceledByStudent };
