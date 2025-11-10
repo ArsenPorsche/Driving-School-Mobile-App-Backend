@@ -11,6 +11,8 @@ router.post("/validate-token", AuthController.validateToken);
 router.post("/push-token", authMiddleware(), AuthController.registerPushToken);
 router.get("/profile", authMiddleware(), AuthController.getProfile);
 router.put("/profile", authMiddleware(), AuthController.updateProfile);
+router.get("/users", authMiddleware("admin"), AuthController.getAllUsers);
+router.delete("/users/:userId", authMiddleware("admin"), AuthController.deleteUser);
 
 
 module.exports = router;

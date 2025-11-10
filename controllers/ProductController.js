@@ -5,11 +5,11 @@ const { User } = require("../models/User");
 class ProductController {
   static async getProducts(req, res) {
     try {
-      const products = await Product.find({ active: true })
+      const products = await Product.find()
         .select("-__v")
         .sort({ category: 1, priceMinor: 1 });
       
-      res.json(products);
+      res.json({ data: products });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -212,6 +212,92 @@ class ProductController {
         purchasedExams: user.purchasedExams
       });
 
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async createProduct(req, res) {
+    try {
+      const { name, description, price, category, entitlements } = req.body;
+
+      if (!Array.isArray(entitlements) || entitlements.length === 0) {
+        return res.status(400).json({ message: "Entitlements must be non-empty array" });
+      }
+
+      for (const ent of entitlements) {
+        if (!['lesson','exam'].includes(ent.unit) || typeof ent.count !== 'number' || ent.count < 0) {
+          return res.status(400).json({ message: "Invalid entitlement entry" });
+        }
+      }
+
+      const product = await Product.create({
+        code: `${category}_${Date.now()}`,
+        title: name,
+        description,
+        priceMinor: Math.round(price * 100),
+        category,
+        entitlements: entitlements.filter(e => e.count > 0),
+        active: true
+      });
+
+      res.status(201).json({ data: product });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async updateProduct(req, res) {
+    try {
+      const { productId } = req.params;
+      const { name, description, price, category, entitlements } = req.body;
+
+      if (!Array.isArray(entitlements) || entitlements.length === 0) {
+        return res.status(400).json({ message: "Entitlements must be non-empty array" });
+      }
+      for (const ent of entitlements) {
+        if (!['lesson','exam'].includes(ent.unit) || typeof ent.count !== 'number' || ent.count < 0) {
+          return res.status(400).json({ message: "Invalid entitlement entry" });
+        }
+      }
+
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        {
+          title: name,
+          description,
+          priceMinor: Math.round(price * 100),
+          category,
+          entitlements: entitlements.filter(e => e.count > 0)
+        },
+        { new: true }
+      );
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json({ data: product });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async deleteProduct(req, res) {
+    try {
+      const { productId } = req.params;
+      
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        { active: false },
+        { new: true }
+      );
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json({ message: "Product deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
     }

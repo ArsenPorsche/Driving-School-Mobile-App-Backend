@@ -209,6 +209,28 @@ class AuthController {
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
+
+  static async getAllUsers(req, res) {
+    try {
+      const users = await User.find().select('-password -refreshTokens');
+      res.json({ data: users });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async deleteUser(req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await User.findByIdAndDelete(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
 }
 
 module.exports = AuthController;
