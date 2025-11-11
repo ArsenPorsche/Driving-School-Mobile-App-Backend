@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { User } = require("../models/User");
 
 const authMiddleware = (requiredRole) => {
   return async (req, res, next) => {
@@ -9,14 +10,19 @@ const authMiddleware = (requiredRole) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWTPRIVATEKEY);
-      if (requiredRole && decoded.role !== requiredRole) {
+      const user = await User.findById(decoded._id);
+      if (!user || !user.active) {
+        return res.status(401).json({ message: "User inactive or not found" });
+      }
+
+      if (requiredRole && user.role !== requiredRole) {
         return res.status(403).json({ message: `Access denied: ${requiredRole} role required` });
       }
 
-      req.user = decoded;
+      req.user = { _id: user._id, role: user.role };
       next();
     } catch (error) {
-      res.status(401).json({ message: "Invalid token" });
+      return res.status(401).json({ message: "Invalid token" });
     }
   };
 };

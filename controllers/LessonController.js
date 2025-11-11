@@ -293,5 +293,112 @@ class LessonController {
       res.status(500).json({ message: "Server error", error: error.message });
     }
   }
+
+  static async getLessonHistory(req, res) {
+    try {
+      const studentId = req.user?._id;
+      const lessons = await Lesson.find({ 
+        student: studentId,
+        status: { $in: ["completed", "canceled"] }
+      })
+        .populate("instructor", "firstName lastName role")
+        .sort({ date: -1 });
+      res.json(lessons);
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async getInstructorHistory(req, res) {
+    try {
+      const instructorId = req.user?._id;
+      const lessons = await Lesson.find({ 
+        instructor: instructorId,
+        status: { $in: ["completed", "canceled"] }
+      })
+        .populate("student", "firstName lastName role")
+        .sort({ date: -1 });
+      res.json(lessons);
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async setExamResult(req, res) {
+    try {
+      const { lessonId } = req.params;
+      const { wynik } = req.body;
+      const instructorId = req.user?._id;
+
+      if (!wynik || !["passed", "failed", "pending"].includes(wynik)) {
+        return res.status(400).json({ message: "Result must be 'passed', 'failed', or 'pending'" });
+      }
+
+      const lesson = await Lesson.findById(lessonId);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+
+      if (lesson.instructor.toString() !== instructorId.toString()) {
+        return res.status(403).json({ message: "Not authorized to set result for this lesson" });
+      }
+
+      if (lesson.type !== "exam") {
+        return res.status(400).json({ message: "Can only set results for exams" });
+      }
+
+      if (lesson.status !== "completed") {
+        return res.status(400).json({ message: "Can only set results for completed exams" });
+      }
+
+      lesson.wynik = wynik;
+      await lesson.save();
+
+      res.json({ message: "Exam result set successfully", lesson });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async rateLesson(req, res) {
+    try {
+      const { lessonId } = req.params;
+      const { rating } = req.body;
+      const studentId = req.user?._id;
+
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      }
+
+      const lesson = await Lesson.findById(lessonId);
+      if (!lesson) {
+        return res.status(404).json({ message: "Lesson not found" });
+      }
+
+      if (!lesson.student) {
+        return res.status(400).json({ message: "This lesson has no student assigned" });
+      }
+
+      if (lesson.student.toString() !== studentId.toString()) {
+        return res.status(403).json({ message: "Not authorized to rate this lesson" });
+      }
+
+      if (lesson.status !== "completed" && lesson.status !== "canceled") {
+        return res.status(400).json({ message: "Can only rate completed or canceled lessons" });
+      }
+
+      if (lesson.rated) {
+        return res.status(400).json({ message: "Lesson already rated" });
+      }
+
+      lesson.rating = rating;
+      lesson.rated = true;
+      await lesson.save();
+
+      res.json({ message: "Lesson rated successfully", lesson });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
 }
 module.exports = LessonController;

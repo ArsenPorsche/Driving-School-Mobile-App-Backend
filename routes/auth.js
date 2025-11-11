@@ -13,6 +13,7 @@ router.get("/profile", authMiddleware(), AuthController.getProfile);
 router.put("/profile", authMiddleware(), AuthController.updateProfile);
 router.get("/users", authMiddleware("admin"), AuthController.getAllUsers);
 router.delete("/users/:userId", authMiddleware("admin"), AuthController.deleteUser);
+router.patch("/users/:userId/activate", authMiddleware("admin"), AuthController.activateUser);
 
 
 module.exports = router;

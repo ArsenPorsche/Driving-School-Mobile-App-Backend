@@ -14,10 +14,18 @@ const lessonSchema = new mongoose.Schema({
   wynik: {
     type: String,
     enum: ["passed", "failed", "pending"],
-    required: function() {
-      return this.type === "exam" && this.status === "completed";
-    }
+    default: "pending"
   },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5,
+    default: null
+  },
+  rated: {
+    type: Boolean,
+    default: false
+  }
 });
 
 lessonSchema.index({ date: 1, type: 1 });

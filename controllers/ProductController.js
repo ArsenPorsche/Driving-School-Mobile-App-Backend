@@ -5,10 +5,23 @@ const { User } = require("../models/User");
 class ProductController {
   static async getProducts(req, res) {
     try {
-      const products = await Product.find()
+      // Only return active products for the store
+      const products = await Product.find({ active: true })
         .select("-__v")
         .sort({ category: 1, priceMinor: 1 });
       
+      res.json({ data: products });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async getAllProducts(req, res) {
+    try {
+      // Admin view: include inactive as well
+      const products = await Product.find()
+        .select("-__v")
+        .sort({ category: 1, priceMinor: 1 });
       res.json({ data: products });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -287,17 +300,35 @@ class ProductController {
     try {
       const { productId } = req.params;
       
-      const product = await Product.findByIdAndUpdate(
-        productId,
-        { active: false },
-        { new: true }
-      );
+      const product = await Product.findById(productId);
 
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
+      if (product.active === false) {
+        return res.json({ message: "Product already inactive" });
+      }
+      product.active = false;
+      await product.save();
+      res.json({ message: "Product deactivated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
 
-      res.json({ message: "Product deleted successfully" });
+  static async activateProduct(req, res) {
+    try {
+      const { productId } = req.params;
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+      if (product.active === true) {
+        return res.json({ message: "Product already active" });
+      }
+      product.active = true;
+      await product.save();
+      res.json({ message: "Product activated successfully" });
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
     }

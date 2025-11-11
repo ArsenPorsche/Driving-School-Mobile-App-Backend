@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema({
   phoneNumber: {type: String, required: true, unique: true},
   email: {type: String, required: true, unique: true},
   password: {type: String, required: true},
+  active: { type: Boolean, default: true },
   refreshTokens: [refreshTokenSchema],
   purchasedLessons: {type: Number, default: 0},
   purchasedExams: {type: Number, default: 0},
@@ -51,6 +52,22 @@ userSchema.methods.generateRefreshToken = function () {
   const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   this.refreshTokens.push({ token: refreshToken, expiry });
   return refreshToken;
+};
+
+userSchema.methods.calculateAverageRating = async function() {
+  const Lesson = mongoose.model('Lesson');
+  const result = await Lesson.aggregate([
+    { $match: { instructor: this._id, rated: true, rating: { $ne: null } } },
+    { $group: { _id: null, avgRating: { $avg: "$rating" }, totalRatings: { $sum: 1 } } }
+  ]);
+  
+  if (result.length > 0) {
+    return {
+      average: Math.round(result[0].avgRating * 10) / 10,
+      total: result[0].totalRatings
+    };
+  }
+  return { average: 0, total: 0 };
 };
 
 const User = mongoose.model("User", userSchema);

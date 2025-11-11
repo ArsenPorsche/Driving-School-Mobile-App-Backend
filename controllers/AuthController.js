@@ -14,6 +14,10 @@ class AuthController {
       if (!user)
         return res.status(400).json({ message: "Invalid email or password" });
 
+      if (user.active === false) {
+        return res.status(403).json({ message: "Account is inactive" });
+      }
+
       const isMatch = await user.comparePassword(password);
       if (!isMatch)
         return res.status(400).json({ message: "Invalid email or password" });
@@ -86,7 +90,7 @@ class AuthController {
       const decoded = jwt.verify(token, process.env.JWTPRIVATEKEY)
       const user = await User.findById(decoded._id)
 
-      if (!user) return res.status(403).json({ message: "Invalid user" });
+      if (!user || user.active === false) return res.status(403).json({ message: "Invalid user" });
 
       res.json({
         valid: true,
@@ -106,7 +110,7 @@ class AuthController {
       const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
       const user = await User.findById(decoded._id);
 
-      if (!user) return res.sendStatus(403);
+      if (!user || user.active === false) return res.sendStatus(403);
 
       const tokenRecord = user.refreshTokens.find((t) => t.token === refreshToken && t.expiry > new Date());
       if (!tokenRecord) return res.status(403).json({ message: "Invalid or expired refresh token" });
@@ -222,11 +226,41 @@ class AuthController {
   static async deleteUser(req, res) {
     try {
       const { userId } = req.params;
-      const user = await User.findByIdAndDelete(userId);
+      // prevent admin from deleting self
+      if (String(userId) === String(req.user._id)) {
+        return res.status(400).json({ message: "You cannot deactivate your own account" });
+      }
+      const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ message: "User deleted successfully" });
+      if (user.active === false) {
+        return res.json({ message: "User already inactive" });
+      }
+      user.active = false;
+      user.refreshTokens = [];
+      await user.save();
+      res.json({ message: "User deactivated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+
+  static async activateUser(req, res) {
+    try {
+      const { userId } = req.params;
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (user.active === true) {
+        return res.json({ message: "User already active" });
+      }
+      user.active = true;
+      // do not restore refresh tokens; user must re-login to get new tokens
+      user.refreshTokens = [];
+      await user.save();
+      res.json({ message: "User activated successfully" });
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
     }
