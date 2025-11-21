@@ -3,7 +3,6 @@ const Message = require("../models/Message");
 const { User } = require("../models/User");
 
 async function ensureChatBetween(userAId, userBId) {
-  // Determine roles by fetching users
   const [userA, userB] = await Promise.all([
     User.findById(userAId).select("role"),
     User.findById(userBId).select("role"),
@@ -58,4 +57,24 @@ async function getUnreadCount(chatId, userId) {
   return count;
 }
 
-module.exports = { ensureChatBetween, createMessage, getUnreadCount };
+async function sendSystemMessageFromNotification(studentId, instructorId, text, data = {}) {
+  try {
+    const chat = await ensureChatBetween(studentId, instructorId);
+    
+    const message = await createMessage(chat._id, data.sender === 'instructor' ? instructorId : studentId, {
+      text,
+      type: 'system',
+      data,
+    });
+    
+    const { emitChatUpdated } = require("./socket");
+    await emitChatUpdated(chat._id);
+    
+    return message;
+  } catch (err) {
+    console.log('Error saving system message:', err.message);
+    throw err;
+  }
+}
+
+module.exports = { ensureChatBetween, createMessage, getUnreadCount, sendSystemMessageFromNotification };

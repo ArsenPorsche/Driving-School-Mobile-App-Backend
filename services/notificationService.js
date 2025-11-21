@@ -51,7 +51,7 @@ async function notifyLessonChanged(oldLesson, newLesson, instructor, student) {
   });
 
   const title = `${typeLabel} canceled`;
-  const body = `Your ${typeLabel.toLowerCase()} on ${oldWhen} was canceled by ${instructor.firstName} ${instructor.lastName}. A new slot is available on ${newWhen}. Your balance was refunded.`;
+  const body = `Your ${typeLabel.toLowerCase()} on ${oldWhen} was canceled by ${instructor.firstName} ${instructor.lastName}. A new slot is available on ${newWhen}. Student's balance was refunded.`;
   const data = { 
     oldLessonId: String(oldLesson._id), 
     newLessonId: String(newLesson._id), 
@@ -69,6 +69,13 @@ async function notifyLessonChanged(oldLesson, newLesson, instructor, student) {
       type: "lesson_canceled",
       data,
     });
+    
+    try {
+      const { sendSystemMessageFromNotification } = require("./chatService");
+      await sendSystemMessageFromNotification(student._id, instructor._id, body, { ...data, action: 'reschedule' });
+    } catch (chatErr) {
+      console.log('Chat message error:', chatErr.message);
+    }
   } catch (e) {
     console.log("Notification save error:", e.message);
   }
@@ -95,16 +102,22 @@ async function notifyLessonCanceledByStudent(lesson, student, instructor) {
       sender: 'student',
     };
 
-      // Save notification for instructor (user = instructor, instructor = student who cancelled)
     try {
       await Notification.create({
         user: instructor._id,
-          instructor: student._id,
+        instructor: student._id,
         title,
         body,
         type: 'lesson_canceled',
         data,
       });
+      
+      try {
+        const { sendSystemMessageFromNotification } = require("./chatService");
+        await sendSystemMessageFromNotification(student._id, instructor._id, body, { ...data, action: 'cancel' });
+      } catch (chatErr) {
+        console.log('Chat message error:', chatErr.message);
+      }
     } catch (e) {
       console.log('Notification save error:', e.message);
     }

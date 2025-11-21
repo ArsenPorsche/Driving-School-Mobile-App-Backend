@@ -24,8 +24,8 @@ function init(server) {
   });
 
   io.on("connection", (socket) => {
-    // Personal room for user-level events
-    socket.join(`user:${socket.user._id}`);
+    const userRoom = `user:${socket.user._id}`;
+    socket.join(userRoom);
 
     socket.on("chat:join", async ({ chatId }) => {
       try {
@@ -36,13 +36,17 @@ function init(server) {
         const isMember = chat.participants.some((p) => String(p) === uid);
         if (!isMember) return;
         socket.join(`chat:${chatId}`);
-      } catch {}
+      } catch (e) {
+        console.log('Error in chat:join:', e.message);
+      }
     });
 
     socket.on("chat:leave", ({ chatId }) => {
       if (!chatId) return;
       socket.leave(`chat:${chatId}`);
     });
+
+    socket.on("disconnect", () => {});
   });
 
   return io;

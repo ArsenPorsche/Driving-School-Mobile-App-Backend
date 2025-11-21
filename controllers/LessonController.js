@@ -180,7 +180,6 @@ class LessonController {
       oldLesson.status = "canceled";
       await oldLesson.save();
 
-      // Create new lesson as available (not booked)
       const newLesson = new Lesson({
         date: new Date(newDate),
         instructor: oldLesson.instructor,
@@ -254,6 +253,9 @@ class LessonController {
 
       const refundBalance = hoursDifference >= 24;
 
+      // Save references before clearing
+      const studentData = lesson.student;
+      const instructorData = lesson.instructor;
       
       lesson.status = "available";
       lesson.student = undefined;
@@ -274,8 +276,8 @@ class LessonController {
       // notify instructor about student cancellation
       try {
         const { notifyLessonCanceledByStudent } = require("../services/notificationService");
-        const student = lesson.student && lesson.student._id ? lesson.student : await User.findById(studentId);
-        const instructor = lesson.instructor && lesson.instructor._id ? lesson.instructor : await User.findById(lesson.instructor);
+        const student = studentData && studentData._id ? studentData : await User.findById(studentId);
+        const instructor = instructorData && instructorData._id ? instructorData : await User.findById(lesson.instructor);
         if (student && instructor) {
           await notifyLessonCanceledByStudent(lesson, student, instructor);
         }
