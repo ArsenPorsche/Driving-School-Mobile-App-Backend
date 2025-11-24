@@ -21,9 +21,10 @@ app.use("/instructors", require("./routes/instructors"));
 app.use("/lessons", require("./routes/lessons"));
 app.use("/products", require("./routes/products"));
 app.use("/chats", require("./routes/chats"));
+app.use("/tests", require("./routes/tests"));
 
 scheduleJob();
 
-server.listen(3000, "0.0.0.0", () => {
-  console.log("Server running on port 3000");
+server.listen(5000, () => {
+  console.log("Server running on port 5000");
 });
