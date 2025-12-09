@@ -3,12 +3,8 @@ const { User } = require("../models/User");
 const getWeekBounds = require("../utils/getWeekBounds");
 
 class ScheduleService {
-  static async generateWeekScheduleForInstructor(
-    instructor,
-    weekStart,
-    type = "lesson",
-    count = 16,
-    existingItems = []
+  static async generateWeekScheduleForInstructor(instructor, 
+    weekStart, type = "lesson", count = 16, existingItems = []
   ) {
     const items = [];
     let totalItems = 0;
@@ -27,7 +23,8 @@ class ScheduleService {
       currentDay.setHours(startHour, 0, 0, 0);
       const itemDate = new Date(currentDay);
 
-      const hasConflict = [...items, ...existingItems].some((existing) => {
+      const hasConflict = [...items, ...existingItems]
+      .some((existing) => {
         const existingStart = new Date(existing.date);
         const existingEnd = new Date(
           existingStart.getTime() + 2 * 60 * 60 * 1000
@@ -46,10 +43,6 @@ class ScheduleService {
           type: type,
           duration: 2,
         };
-
-        if (type === "exam") {
-          item.examType = "internal";
-        }
 
         items.push(item);
         totalItems++;

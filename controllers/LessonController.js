@@ -1,15 +1,10 @@
-const Lesson = require("../models/Lesson");
-const { User } = require("../models/User");
-const getWeekBounds = require("../utils/getWeekBounds");
+const LessonService = require("../services/lessonService");
 
 class LessonController {
   static async getAvailableLessons(req, res) {
     try {
-      const { type = "lesson" } = req.query; 
-      const lessons = await Lesson.find({ 
-        status: "available",
-        type: type 
-      }).populate("instructor", "firstName lastName role");
+      const { type = "lesson" } = req.query;
+      const lessons = await LessonService.getAvailableLessons(type);
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -17,56 +12,22 @@ class LessonController {
   }
 
   static async bookLesson(req, res) {
-    const { lessonId } = req.body;
-    const studentId = req.user?._id;
-
     try {
-      const lesson = await Lesson.findById(lessonId);
-      const student = await User.findById(studentId);
-
-      if (!lesson) {
-        return res.status(404).json({ message: "Lesson not found" });
-      }
-
-      if (!student) {
-        return res.status(404).json({ message: "Student not found" });
-      }
-
-      if (lesson.status !== "available") {
-        return res.status(400).json({ message: "Lesson not available" });
-      }
-
-      if (lesson.type === "lesson" && student.purchasedLessons <= 0) {
-        return res.status(400).json({ message: "No purchased lessons available" });
-      }
-      
-      if (lesson.type === "exam" && student.purchasedExams <= 0) {
-        return res.status(400).json({ message: "No purchased exams available" });
-      }
-
-      lesson.student = student._id;
-      lesson.status = "booked";
-      await lesson.save();
-
-      if (lesson.type === "lesson") {
-        student.purchasedLessons = student.purchasedLessons - 1;
-      } else if (lesson.type === "exam") {
-        student.purchasedExams = student.purchasedExams - 1;
-      }
-      await student.save();
-
+      const { lessonId } = req.body;
+      const studentId = req.user?._id;
+      const lesson = await LessonService.bookLesson(lessonId, studentId);
       res.json({ message: `${lesson.type} booked successfully`, lesson });
     } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
+      const statusCode = error.message.includes("not found") ? 404 : 
+                         error.message.includes("not available") || 
+                         error.message.includes("No purchased") ? 400 : 500;
+      res.status(statusCode).json({ message: error.message });
     }
   }
 
   static async getAllLessons(req, res) {
     try {
-      const lessons = await Lesson.find({})
-        .populate("instructor", "firstName lastName role")
-        .populate("student", "firstName lastName role")
-        .sort({ date: 1 });
+      const lessons = await LessonService.getAllLessons();
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -76,10 +37,7 @@ class LessonController {
   static async getInstructorsLessons(req, res) {
     try {
       const instructorId = req.user?._id;
-      const lessons = await Lesson.find({ instructor: instructorId })
-        .populate("instructor", "firstName lastName role")
-        .populate("student", "firstName lastName role")
-        .sort({ date: 1 });
+      const lessons = await LessonService.getInstructorLessons(instructorId);
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -89,13 +47,7 @@ class LessonController {
   static async getStudentLessons(req, res) {
     try {
       const studentId = req.user?._id;
-      const lessons = await Lesson.find({ 
-        student: studentId,
-        status: "booked" 
-      })
-        .populate("instructor", "firstName lastName role")
-        .populate("student", "firstName lastName role")
-        .sort({ date: 1 });
+      const lessons = await LessonService.getStudentLessons(studentId);
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -105,47 +57,7 @@ class LessonController {
   static async getLessonOffer(req, res) {
     try {
       const instructorId = req.user?._id;
-
-      const lessons = await Lesson.find({ instructor: instructorId })
-        .populate("instructor", "firstName lastName role")
-        .populate("student", "firstName lastName role")
-        .sort({ date: 1 });
-
-      const today = new Date();
-      const { startOfWeek: thisWeekStart } = getWeekBounds(today);
-
-      const nextWeekStart = new Date(thisWeekStart);
-      nextWeekStart.setDate(thisWeekStart.getDate() + 7);
-
-      let lessonDate = null;
-      let attempt = 0
-      while (attempt < 100) {
-        attempt++
-        const dayOffset = Math.floor(Math.random() * 7); // Random day of week
-        const currentDay = new Date(nextWeekStart);
-        currentDay.setDate(nextWeekStart.getDate() + dayOffset);
-
-        const startHour = 8 + Math.floor(Math.random() * 11); // 8:00 - 18:00 (last lesson ends at 20:00)
-
-        currentDay.setHours(startHour, 0, 0, 0);
-
-        const newStart = new Date(currentDay);
-        const newEnd = new Date(newStart.getTime() + 2 * 60 * 60 * 1000);
-
-        const hasConflict = lessons.some((existing) => {
-          const existingStart = new Date(existing.date);
-          const existingEnd = new Date(
-            existingStart.getTime() + 2 * 60 * 60 * 1000
-          );
-
-          return newStart < existingEnd && newEnd > existingStart;
-        });
-        if (!hasConflict) {
-          lessonDate = newStart;
-          break;
-        }
-      }
-
+      const lessonDate = await LessonService.generateLessonOffer(instructorId);
       res.json(lessonDate);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -155,51 +67,7 @@ class LessonController {
   static async changeLesson(req, res) {
     try {
       const { oldLessonId, newDate } = req.body;
-
-      const oldLesson = await Lesson.findById(oldLessonId)
-        .populate("instructor", "firstName lastName pushTokens role")
-        .populate("student", "firstName lastName pushTokens role");
-      if (!oldLesson) {
-        return res.status(404).json({ message: "Lesson not found" });
-      }
-      const wasBooked = oldLesson.status === "booked" && oldLesson.student;
-      
-      
-      if (wasBooked) {
-        const student = await User.findById(oldLesson.student._id);
-        if (student) {
-          if (oldLesson.type === "lesson") {
-            student.purchasedLessons += 1;
-          } else if (oldLesson.type === "exam") {
-            student.purchasedExams += 1;
-          }
-          await student.save();
-        }
-      }
-      
-      oldLesson.status = "canceled";
-      await oldLesson.save();
-
-      const newLesson = new Lesson({
-        date: new Date(newDate),
-        instructor: oldLesson.instructor,
-        status: "available",
-        type: oldLesson.type,
-        duration: oldLesson.duration,
-      });
-      await newLesson.save();
-
-
-      if (wasBooked) {
-        
-        try {
-          const { notifyLessonChanged } = require("../services/notificationService");
-          await notifyLessonChanged(oldLesson, newLesson, oldLesson.instructor, oldLesson.student);
-        } catch (e) {
-          console.log("Notification error:", e.message);
-        }
-      }
-
+      const { oldLesson, newLesson } = await LessonService.changeLesson(oldLessonId, newDate);
       
       res.json({
         oldLesson: {
@@ -216,7 +84,8 @@ class LessonController {
         },
       });
     } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
+      const statusCode = error.message.includes("not found") ? 404 : 500;
+      res.status(statusCode).json({ message: error.message });
     }
   }
 
@@ -224,87 +93,26 @@ class LessonController {
     try {
       const { lessonId } = req.body;
       const studentId = req.user?._id;
-      const lesson = await Lesson.findById(lessonId)
-        .populate("instructor", "firstName lastName pushTokens role")
-        .populate("student", "firstName lastName pushTokens role");
-      if (!lesson) {
-        return res.status(404).json({ message: "Lesson not found" });
-      }
-
-      // Ensure the requester is the student who booked this lesson
-      const lessonStudentIdStr = lesson?.student?._id
-        ? lesson.student._id.toString()
-        : typeof lesson?.student?.toString === "function"
-        ? lesson.student.toString()
-        : null;
-
-      if (!lessonStudentIdStr || lessonStudentIdStr !== studentId.toString()) {
-        return res.status(403).json({ message: "Not authorized to cancel this lesson" });
-      }
-
-      if (lesson.status !== "booked") {
-        return res.status(400).json({ message: "Lesson is not booked" });
-      }
-
+      const { lesson, refunded, hoursBefore } = await LessonService.cancelLesson(lessonId, studentId);
       
-      const lessonDate = new Date(lesson.date);
-      const now = new Date();
-      const hoursDifference = (lessonDate - now) / (1000 * 60 * 60);
-
-      const refundBalance = hoursDifference >= 24;
-
-      // Save references before clearing
-      const studentData = lesson.student;
-      const instructorData = lesson.instructor;
-      
-      lesson.status = "available";
-      lesson.student = undefined;
-      await lesson.save();
-
-      
-      if (refundBalance) {
-        const student = await User.findById(studentId);
-        if (lesson.type === "lesson") {
-          student.purchasedLessons += 1;
-        } else if (lesson.type === "exam") {
-          student.purchasedExams += 1;
-        }
-        await student.save();
-      }
-
-
-      // notify instructor about student cancellation
-      try {
-        const { notifyLessonCanceledByStudent } = require("../services/notificationService");
-        const student = studentData && studentData._id ? studentData : await User.findById(studentId);
-        const instructor = instructorData && instructorData._id ? instructorData : await User.findById(lesson.instructor);
-        if (student && instructor) {
-          await notifyLessonCanceledByStudent(lesson, student, instructor);
-        }
-      } catch (e) {
-        console.log('Notification error:', e.message);
-      }
-
       res.json({ 
         message: `${lesson.type} cancelled successfully`,
-        refunded: refundBalance,
-        hoursBefore: hoursDifference.toFixed(1),
+        refunded,
+        hoursBefore: hoursBefore.toFixed(1),
         lesson 
       });
     } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
+      const statusCode = error.message.includes("not found") ? 404 :
+                         error.message.includes("Not authorized") ? 403 :
+                         error.message.includes("not booked") ? 400 : 500;
+      res.status(statusCode).json({ message: error.message });
     }
   }
 
   static async getLessonHistory(req, res) {
     try {
       const studentId = req.user?._id;
-      const lessons = await Lesson.find({ 
-        student: studentId,
-        status: { $in: ["completed", "canceled"] }
-      })
-        .populate("instructor", "firstName lastName role")
-        .sort({ date: -1 });
+      const lessons = await LessonService.getLessonHistory(studentId);
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -314,12 +122,7 @@ class LessonController {
   static async getInstructorHistory(req, res) {
     try {
       const instructorId = req.user?._id;
-      const lessons = await Lesson.find({ 
-        instructor: instructorId,
-        status: { $in: ["completed", "canceled"] }
-      })
-        .populate("student", "firstName lastName role")
-        .sort({ date: -1 });
+      const lessons = await LessonService.getInstructorHistory(instructorId);
       res.json(lessons);
     } catch (error) {
       res.status(500).json({ message: "Server error", error: error.message });
@@ -331,34 +134,14 @@ class LessonController {
       const { lessonId } = req.params;
       const { wynik } = req.body;
       const instructorId = req.user?._id;
-
-      if (!wynik || !["passed", "failed", "pending"].includes(wynik)) {
-        return res.status(400).json({ message: "Result must be 'passed', 'failed', or 'pending'" });
-      }
-
-      const lesson = await Lesson.findById(lessonId);
-      if (!lesson) {
-        return res.status(404).json({ message: "Lesson not found" });
-      }
-
-      if (lesson.instructor.toString() !== instructorId.toString()) {
-        return res.status(403).json({ message: "Not authorized to set result for this lesson" });
-      }
-
-      if (lesson.type !== "exam") {
-        return res.status(400).json({ message: "Can only set results for exams" });
-      }
-
-      if (lesson.status !== "completed") {
-        return res.status(400).json({ message: "Can only set results for completed exams" });
-      }
-
-      lesson.wynik = wynik;
-      await lesson.save();
-
+      const lesson = await LessonService.setExamResult(lessonId, instructorId, wynik);
       res.json({ message: "Exam result set successfully", lesson });
     } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
+      const statusCode = error.message.includes("not found") ? 404 :
+                         error.message.includes("Not authorized") ? 403 :
+                         error.message.includes("must be") || 
+                         error.message.includes("Can only") ? 400 : 500;
+      res.status(statusCode).json({ message: error.message });
     }
   }
 
@@ -367,40 +150,19 @@ class LessonController {
       const { lessonId } = req.params;
       const { rating } = req.body;
       const studentId = req.user?._id;
-
-      if (!rating || rating < 1 || rating > 5) {
-        return res.status(400).json({ message: "Rating must be between 1 and 5" });
-      }
-
-      const lesson = await Lesson.findById(lessonId);
-      if (!lesson) {
-        return res.status(404).json({ message: "Lesson not found" });
-      }
-
-      if (!lesson.student) {
-        return res.status(400).json({ message: "This lesson has no student assigned" });
-      }
-
-      if (lesson.student.toString() !== studentId.toString()) {
-        return res.status(403).json({ message: "Not authorized to rate this lesson" });
-      }
-
-      if (lesson.status !== "completed" && lesson.status !== "canceled") {
-        return res.status(400).json({ message: "Can only rate completed or canceled lessons" });
-      }
-
-      if (lesson.rated) {
-        return res.status(400).json({ message: "Lesson already rated" });
-      }
-
-      lesson.rating = rating;
-      lesson.rated = true;
-      await lesson.save();
-
+      const lesson = await LessonService.rateLesson(lessonId, studentId, rating);
       res.json({ message: "Lesson rated successfully", lesson });
     } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
+      const statusCode = error.message.includes("not found") ? 404 :
+                         error.message.includes("Not authorized") ? 403 :
+                         error.message.includes("must be") || 
+                         error.message.includes("Can only") ||
+                         error.message.includes("already rated") ||
+                         error.message.includes("no student") ? 400 : 500;
+      res.status(statusCode).json({ message: error.message });
     }
   }
 }
+
 module.exports = LessonController;
+
