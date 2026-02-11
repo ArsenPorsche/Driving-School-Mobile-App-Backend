@@ -1,6 +1,10 @@
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const { User } = require("../models/User");
+const AppError = require("../utils/AppError");
+const { encryptString, decryptString } = require("../utils/crypto");
+
+// -------- Internal helpers --------
 
 async function ensureChatBetween(userAId, userBId) {
   const [userA, userB] = await Promise.all([
@@ -8,13 +12,13 @@ async function ensureChatBetween(userAId, userBId) {
     User.findById(userBId).select("role"),
   ]);
 
-  if (!userA || !userB) throw new Error("Users not found for chat");
+  if (!userA || !userB) throw AppError.notFound("Users not found for chat");
 
   const instructorId = userA.role === "instructor" ? userAId : userB.role === "instructor" ? userBId : null;
   const studentId = userA.role === "student" ? userAId : userB.role === "student" ? userBId : null;
 
   if (!instructorId || !studentId) {
-    throw new Error("Chat participants must include an instructor and a student");
+    throw AppError.badRequest("Chat participants must include an instructor and a student");
   }
 
   let chat = await Chat.findOne({ instructor: instructorId, student: studentId });
@@ -31,7 +35,6 @@ async function ensureChatBetween(userAId, userBId) {
 }
 
 async function createMessage(chatId, senderId, { text = "", type = "text", data = {} } = {}) {
-  const { encryptString } = require("../utils/crypto");
   const encText = encryptString(text);
   const message = await Message.create({
     chat: chatId,
@@ -49,74 +52,59 @@ async function createMessage(chatId, senderId, { text = "", type = "text", data 
 }
 
 async function getUnreadCount(chatId, userId) {
-  const count = await Message.countDocuments({
+  return Message.countDocuments({
     chat: chatId,
     sender: { $ne: userId },
     readBy: { $ne: userId },
   });
-  return count;
 }
 
+// -------- Public API --------
+
 async function sendSystemMessageFromNotification(studentId, instructorId, text, data = {}) {
-  try {
-    const chat = await ensureChatBetween(studentId, instructorId);
-    
-    const message = await createMessage(chat._id, data.sender === 'instructor' ? instructorId : studentId, {
-      text,
-      type: 'system',
-      data,
-    });
-    
-    const { emitChatUpdated } = require("./socket");
-    await emitChatUpdated(chat._id);
-    
-    return message;
-  } catch (err) {
-    console.log('Error saving system message:', err.message);
-    throw err;
-  }
+  const chat = await ensureChatBetween(studentId, instructorId);
+  const senderId = data.sender === "instructor" ? instructorId : studentId;
+  const message = await createMessage(chat._id, senderId, { text, type: "system", data });
+
+  const { emitChatUpdated } = require("./socket");
+  emitChatUpdated(chat._id).catch(() => {});
+
+  return message;
 }
 
 async function listChats(userId) {
-  const { decryptString } = require("../utils/crypto");
   const chats = await Chat.find({ participants: userId })
     .populate("instructor", "firstName lastName role")
     .populate("student", "firstName lastName role")
     .sort({ lastMessageAt: -1 });
 
-  const data = [];
-  for (const chat of chats) {
-    const unread = await getUnreadCount(chat._id, userId);
-    data.push({
+  return Promise.all(
+    chats.map(async (chat) => ({
       _id: chat._id,
       instructor: chat.instructor,
       student: chat.student,
       lastMessage: decryptString(chat.lastMessage || ""),
       lastMessageAt: chat.lastMessageAt,
-      unreadCount: unread,
-    });
-  }
-  return data;
+      unreadCount: await getUnreadCount(chat._id, userId),
+    }))
+  );
 }
 
 async function getMessages(chatId, userId, before, limit = 50) {
   const chat = await Chat.findById(chatId);
-  if (!chat || !chat.participants.some(p => p.toString() === userId.toString())) {
-    throw new Error("Not authorized for this chat");
+  if (!chat || !chat.participants.some((p) => p.toString() === userId.toString())) {
+    throw AppError.forbidden("Not authorized for this chat");
   }
-  
-  const findQuery = { chat: chatId };
-  if (before) {
-    findQuery.createdAt = { $lt: new Date(before) };
-  }
-  
-  const docs = await Message.find(findQuery)
+
+  const query = { chat: chatId };
+  if (before) query.createdAt = { $lt: new Date(before) };
+
+  const docs = await Message.find(query)
     .populate("sender", "firstName lastName role")
     .sort({ createdAt: -1 })
     .limit(parseInt(limit));
-  
-  const { decryptString } = require("../utils/crypto");
-  const messages = docs.map((m) => ({
+
+  return docs.map((m) => ({
     _id: m._id,
     chat: m.chat,
     sender: m.sender,
@@ -126,21 +114,18 @@ async function getMessages(chatId, userId, before, limit = 50) {
     readBy: m.readBy,
     createdAt: m.createdAt,
   }));
-  
-  return messages;
 }
 
 async function sendMessage(userId, partnerId, text) {
   if (!partnerId || !text) {
-    throw new Error("partnerId and text are required");
+    throw AppError.badRequest("partnerId and text are required");
   }
-  
+
   const chat = await ensureChatBetween(userId, partnerId);
   const message = await createMessage(chat._id, userId, { text });
-  
-  const { decryptString } = require("../utils/crypto");
   const plainText = decryptString(message.text || "");
-  
+
+  // Fire-and-forget socket events
   try {
     const { emitToChat, emitChatUpdated } = require("./socket");
     emitToChat(chat._id, "message:new", {
@@ -151,40 +136,40 @@ async function sendMessage(userId, partnerId, text) {
       data: message.data,
       createdAt: message.createdAt,
     });
-    emitChatUpdated(chat._id);
-  } catch (e) {
-    console.log('Socket emit error:', e.message);
+    emitChatUpdated(chat._id).catch(() => {});
+  } catch {
+    // Socket not critical for API response
   }
-  
+
   return { message, plainText };
 }
 
 async function markMessagesAsRead(chatId, userId) {
   const chat = await Chat.findById(chatId);
-  if (!chat || !chat.participants.some(p => p.toString() === userId.toString())) {
-    throw new Error("Not authorized for this chat");
+  if (!chat || !chat.participants.some((p) => p.toString() === userId.toString())) {
+    throw AppError.forbidden("Not authorized for this chat");
   }
-  
+
   await Message.updateMany(
     { chat: chatId, sender: { $ne: userId }, readBy: { $ne: userId } },
     { $push: { readBy: userId } }
   );
-  
+
   try {
     const { emitChatUpdated } = require("./socket");
-    emitChatUpdated(chatId);
-  } catch (e) {
-    console.log('Socket emit error:', e.message);
+    emitChatUpdated(chatId).catch(() => {});
+  } catch {
+    // Socket not critical
   }
 }
 
-module.exports = { 
-  ensureChatBetween, 
-  createMessage, 
-  getUnreadCount, 
+module.exports = {
+  ensureChatBetween,
+  createMessage,
+  getUnreadCount,
   sendSystemMessageFromNotification,
   listChats,
   getMessages,
   sendMessage,
-  markMessagesAsRead
+  markMessagesAsRead,
 };

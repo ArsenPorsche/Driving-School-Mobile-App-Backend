@@ -1,20 +1,32 @@
-const express = require("express")
-const LessonController = require("../controllers/LessonController")
+const express = require("express");
+const LessonController = require("../controllers/LessonController");
 const authMiddleware = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const { ROLES } = require("../config/constants");
+const {
+  bookLessonSchema,
+  cancelLessonSchema,
+  changeLessonSchema,
+  examResultSchema,
+  rateLessonSchema,
+} = require("../validators/schemas");
 
-const router = express.Router()
+const router = express.Router();
 
-router.get("/", authMiddleware("student"), LessonController.getAvailableLessons)
-router.post("/book", authMiddleware("student"), LessonController.bookLesson)
-router.get("/student", authMiddleware("student"), LessonController.getStudentLessons)
-router.post("/cancel", authMiddleware("student"), LessonController.cancelLesson)
-router.get("/history", authMiddleware("student"), LessonController.getLessonHistory)
-router.post("/:lessonId/rate", authMiddleware("student"), LessonController.rateLesson)
-router.get("/all", authMiddleware("instructor"), LessonController.getAllLessons)
-router.get("/instructors", authMiddleware("instructor"), LessonController.getInstructorsLessons)
-router.get("/instructor-history", authMiddleware("instructor"), LessonController.getInstructorHistory)
-router.post("/:lessonId/result", authMiddleware("instructor"), LessonController.setExamResult)
-router.get("/offer", authMiddleware("instructor"), LessonController.getLessonOffer)
-router.post("/change", authMiddleware("instructor"), LessonController.changeLesson)
+// -------- Student routes --------
+router.get("/", authMiddleware(ROLES.STUDENT), LessonController.getAvailableLessons);
+router.post("/book", authMiddleware(ROLES.STUDENT), validate(bookLessonSchema), LessonController.bookLesson);
+router.get("/student", authMiddleware(ROLES.STUDENT), LessonController.getStudentLessons);
+router.post("/cancel", authMiddleware(ROLES.STUDENT), validate(cancelLessonSchema), LessonController.cancelLesson);
+router.get("/history", authMiddleware(ROLES.STUDENT), LessonController.getLessonHistory);
+router.post("/:lessonId/rate", authMiddleware(ROLES.STUDENT), validate(rateLessonSchema), LessonController.rateLesson);
 
-module.exports = router
+// -------- Instructor routes --------
+router.get("/all", authMiddleware(ROLES.INSTRUCTOR), LessonController.getAllLessons);
+router.get("/instructors", authMiddleware(ROLES.INSTRUCTOR), LessonController.getInstructorsLessons);
+router.get("/instructor-history", authMiddleware(ROLES.INSTRUCTOR), LessonController.getInstructorHistory);
+router.post("/:lessonId/result", authMiddleware(ROLES.INSTRUCTOR), validate(examResultSchema), LessonController.setExamResult);
+router.get("/offer", authMiddleware(ROLES.INSTRUCTOR), LessonController.getLessonOffer);
+router.post("/change", authMiddleware(ROLES.INSTRUCTOR), validate(changeLessonSchema), LessonController.changeLesson);
+
+module.exports = router;

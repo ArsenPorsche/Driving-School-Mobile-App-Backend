@@ -12,12 +12,14 @@ function getKey() {
 
 function encryptString(plain) {
   const key = getKey();
-  if (!key) return plain; // encryption disabled
+  if (!key) return plain;
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(ALGO, key, iv);
-  const enc = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
+  const enc = Buffer.concat([cipher.update(String(plain), 'utf8'),
+    cipher.final()]);
   const tag = cipher.getAuthTag();
-  return `${VERSION}:${iv.toString('base64')}:${enc.toString('base64')}:${tag.toString('base64')}`;
+  return `${VERSION}:${iv.toString('base64')}:
+    ${enc.toString('base64')}:${tag.toString('base64')}`;
 }
 
 function decryptString(data) {

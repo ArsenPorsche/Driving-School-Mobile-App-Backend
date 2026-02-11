@@ -1,51 +1,43 @@
 const Lesson = require("../models/Lesson");
 const { User } = require("../models/User");
 const getWeekBounds = require("../utils/getWeekBounds");
+const { ROLES, LESSON_STATUS, LESSON_TYPE, SCHEDULE } = require("../config/constants");
 
 class ScheduleService {
-  static async generateWeekScheduleForInstructor(instructor, 
-    weekStart, type = "lesson", count = 16, existingItems = []
+  static async generateWeekScheduleForInstructor(
+    instructor,
+    weekStart,
+    type = LESSON_TYPE.LESSON,
+    count = SCHEDULE.LESSONS_PER_WEEK,
+    existingItems = []
   ) {
     const items = [];
-    let totalItems = 0;
-    const maxAttempts = 100;
-    let attempts = 0;
+    const durationMs = SCHEDULE.LESSON_DURATION_HOURS * 60 * 60 * 1000;
 
-    while (totalItems < count && attempts < maxAttempts) {
-      attempts++;
-
-      const dayOffset = Math.floor(Math.random() * 7); 
+    for (let attempt = 0; attempt < SCHEDULE.MAX_SCHEDULE_ATTEMPTS && items.length < count; attempt++) {
+      const dayOffset = Math.floor(Math.random() * 7);
       const currentDay = new Date(weekStart);
       currentDay.setDate(weekStart.getDate() + dayOffset);
 
-      const startHour = 8 + Math.floor(Math.random() * 11); 
-
+      const startHour = SCHEDULE.WORK_START_HOUR + Math.floor(Math.random() * SCHEDULE.WORK_HOURS_SPAN);
       currentDay.setHours(startHour, 0, 0, 0);
       const itemDate = new Date(currentDay);
 
-      const hasConflict = [...items, ...existingItems]
-      .some((existing) => {
+      const hasConflict = [...items, ...existingItems].some((existing) => {
         const existingStart = new Date(existing.date);
-        const existingEnd = new Date(
-          existingStart.getTime() + 2 * 60 * 60 * 1000
-        );
-        const newStart = new Date(itemDate);
-        const newEnd = new Date(newStart.getTime() + 2 * 60 * 60 * 1000);
-
-        return newStart < existingEnd && newEnd > existingStart;
+        const existingEnd = new Date(existingStart.getTime() + durationMs);
+        const newEnd = new Date(itemDate.getTime() + durationMs);
+        return itemDate < existingEnd && newEnd > existingStart;
       });
 
       if (!hasConflict) {
-        const item = {
+        items.push({
           date: new Date(itemDate),
           instructor: instructor._id,
-          status: "available",
-          type: type,
-          duration: 2,
-        };
-
-        items.push(item);
-        totalItems++;
+          status: LESSON_STATUS.AVAILABLE,
+          type,
+          duration: SCHEDULE.LESSON_DURATION_HOURS,
+        });
       }
     }
 
@@ -53,47 +45,39 @@ class ScheduleService {
   }
 
   static async generateTwoWeekSchedule() {
-    const instructors = await User.find({ role: "instructor" });
+    const instructors = await User.find({ role: ROLES.INSTRUCTOR });
     const today = new Date();
-
     const { startOfWeek: thisWeekStart } = getWeekBounds(today);
 
     const nextWeekStart = new Date(thisWeekStart);
     nextWeekStart.setDate(thisWeekStart.getDate() + 7);
 
-    const { startOfWeek: nextWeekStartBound, endOfWeek: nextWeekEndBound } =
-      getWeekBounds(nextWeekStart);
+    const { startOfWeek: nextWeekStartBound, endOfWeek: nextWeekEndBound } = getWeekBounds(nextWeekStart);
     const existingNextWeekLessons = await Lesson.find({
-      date: {
-        $gte: nextWeekStartBound,
-        $lte: nextWeekEndBound,
-      },
+      date: { $gte: nextWeekStartBound, $lte: nextWeekEndBound },
     });
 
-    if (existingNextWeekLessons.length === 0) {
+    if (existingNextWeekLessons.length > 0) return; // Already generated
 
-      for (const instructor of instructors) {
-        const weekLessons =
-          await ScheduleService.generateWeekScheduleForInstructor(
-            instructor,
-            nextWeekStart,
-            "lesson",
-            16
-          );
+    for (const instructor of instructors) {
+      const weekLessons = await ScheduleService.generateWeekScheduleForInstructor(
+        instructor,
+        nextWeekStart,
+        LESSON_TYPE.LESSON,
+        SCHEDULE.LESSONS_PER_WEEK
+      );
 
-        const weekExams =
-          await ScheduleService.generateWeekScheduleForInstructor(
-            instructor,
-            nextWeekStart,
-            "exam",
-            4,
-            weekLessons
-          );
+      const weekExams = await ScheduleService.generateWeekScheduleForInstructor(
+        instructor,
+        nextWeekStart,
+        LESSON_TYPE.EXAM,
+        SCHEDULE.EXAMS_PER_WEEK,
+        weekLessons
+      );
 
-        const allScheduleItems = [...weekLessons, ...weekExams];
-        if (allScheduleItems.length > 0) {
-          await Lesson.insertMany(allScheduleItems);
-        }
+      const allItems = [...weekLessons, ...weekExams];
+      if (allItems.length > 0) {
+        await Lesson.insertMany(allItems);
       }
     }
   }

@@ -3,11 +3,12 @@ const { generateTwoWeekSchedule } = require("../services/scheduleService");
 const LessonStatusService = require("../services/lessonStatusService");
 
 const scheduleJob = () => {
-  cron.schedule("* * * * *", async () => { //0 0 * * 1
+  cron.schedule("* * * * *", async () => { 
     try {
       await generateTwoWeekSchedule();
     } catch (error) {
-      console.error("Error generating schedule:", error.message);
+      console.error("Error generating schedule:", 
+        error.message);
     }
   });
 

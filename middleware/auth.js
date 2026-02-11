@@ -1,28 +1,38 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models/User");
+const AppError = require("../utils/AppError");
 
+/**
+ * Authentication & role-based authorization middleware.
+ * @param {string|string[]} [requiredRole] - Single role or array of allowed roles
+ */
 const authMiddleware = (requiredRole) => {
-  return async (req, res, next) => {
+  return async (req, _res, next) => {
     try {
       const token = req.header("Authorization")?.replace("Bearer ", "");
       if (!token) {
-        return res.status(401).json({ message: "No token provided" });
+        throw AppError.unauthorized("No token provided");
       }
 
       const decoded = jwt.verify(token, process.env.JWTPRIVATEKEY);
-      const user = await User.findById(decoded._id);
+      const user = await User.findById(decoded._id).select("_id role active").lean();
+
       if (!user || !user.active) {
-        return res.status(401).json({ message: "User inactive or not found" });
+        throw AppError.unauthorized("User inactive or not found");
       }
 
-      if (requiredRole && user.role !== requiredRole) {
-        return res.status(403).json({ message: `Access denied: ${requiredRole} role required` });
+      if (requiredRole) {
+        const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+        if (!allowed.includes(user.role)) {
+          throw AppError.forbidden(`Access denied: ${allowed.join(" or ")} role required`);
+        }
       }
 
       req.user = { _id: user._id, role: user.role };
       next();
     } catch (error) {
-      return res.status(401).json({ message: "Invalid token" });
+      if (error.isOperational) return next(error);
+      next(AppError.unauthorized("Invalid token"));
     }
   };
 };

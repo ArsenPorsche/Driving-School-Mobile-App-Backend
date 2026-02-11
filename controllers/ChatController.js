@@ -1,68 +1,40 @@
 const chatService = require("../services/chatService");
+const asyncHandler = require("../utils/asyncHandler");
+const { success, message } = require("../utils/responseHelper");
 
 class ChatController {
-  static async listChats(req, res) {
-    try {
-      const userId = req.user._id;
-      const chats = await chatService.listChats(userId);
-      res.json({ chats });
-    } catch (e) {
-      console.error("[ChatController] listChats error", e);
-      res.status(500).json({ message: "Server error", error: e.message });
-    }
-  }
+  static listChats = asyncHandler(async (req, res) => {
+    const chats = await chatService.listChats(req.user._id);
+    success(res, { chats });
+  });
 
-  static async getMessages(req, res) {
-    try {
-      const userId = req.user._id;
-      const { chatId } = req.params;
-      const { before, limit = 50 } = req.query;
-      
-      const messages = await chatService.getMessages(chatId, userId, before, limit);
-      res.json({ messages });
-    } catch (e) {
-      console.error("[ChatController] getMessages error", e);
-      const statusCode = e.message.includes("Not authorized") ? 403 : 500;
-      res.status(statusCode).json({ message: e.message });
-    }
-  }
+  static getMessages = asyncHandler(async (req, res) => {
+    const { before, limit = 50 } = req.query;
+    const messages = await chatService.getMessages(req.params.chatId, req.user._id, before, limit);
+    success(res, { messages });
+  });
 
-  static async sendMessage(req, res) {
-    try {
-      const userId = req.user._id;
-      const { partnerId, text } = req.body;
-      
-      const { message, plainText } = await chatService.sendMessage(userId, partnerId, text);
-      
-      res.json({ message: {
-        _id: message._id,
-        chat: message.chat,
-        sender: message.sender,
-        type: message.type,
+  static sendMessage = asyncHandler(async (req, res) => {
+    const { partnerId, text } = req.body;
+    const { message: msg, plainText } = await chatService.sendMessage(req.user._id, partnerId, text);
+
+    success(res, {
+      message: {
+        _id: msg._id,
+        chat: msg.chat,
+        sender: msg.sender,
+        type: msg.type,
         text: plainText,
-        data: message.data,
-        createdAt: message.createdAt,
-      }});
-    } catch (e) {
-      console.error("[ChatController] sendMessage error", e);
-      const statusCode = e.message.includes("required") ? 400 : 500;
-      res.status(statusCode).json({ message: e.message });
-    }
-  }
+        data: msg.data,
+        createdAt: msg.createdAt,
+      },
+    });
+  });
 
-  static async markRead(req, res) {
-    try {
-      const userId = req.user._id;
-      const { chatId } = req.params;
-      
-      await chatService.markMessagesAsRead(chatId, userId);
-      res.json({ message: "Marked chat messages as read" });
-    } catch (e) {
-      console.error("[ChatController] markRead error", e);
-      const statusCode = e.message.includes("Not authorized") ? 403 : 500;
-      res.status(statusCode).json({ message: e.message });
-    }
-  }
+  static markRead = asyncHandler(async (req, res) => {
+    await chatService.markMessagesAsRead(req.params.chatId, req.user._id);
+    message(res, "Marked chat messages as read");
+  });
 }
 
 module.exports = ChatController;

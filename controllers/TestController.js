@@ -1,25 +1,17 @@
 const TestService = require("../services/testService");
+const asyncHandler = require("../utils/asyncHandler");
+const { success } = require("../utils/responseHelper");
 
 class TestController {
-  static async getCategories(req, res) {
-    try {
-      const topicsWithTests = await TestService.getCategories();
-      res.json(topicsWithTests);
-    } catch (error) {
-      res.status(500).json({ message: "Server error", error: error.message });
-    }
-  }
+  static getCategories = asyncHandler(async (_req, res) => {
+    const topics = await TestService.getCategories();
+    success(res, topics);
+  });
 
-  static async getTestByCategory(req, res) {
-    try {
-      const { topic } = req.params;
-      const test = await TestService.getTestByCategory(topic);
-      res.json(test);
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
+  static getTestByCategory = asyncHandler(async (req, res) => {
+    const test = await TestService.getTestByCategory(req.params.topic);
+    success(res, test);
+  });
 }
 
 module.exports = TestController;

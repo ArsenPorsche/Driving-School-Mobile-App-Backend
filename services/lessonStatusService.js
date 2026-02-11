@@ -26,7 +26,7 @@ class LessonStatusService {
             $set: { status: "completed" }
           },
           {
-            maxTimeMS: 10000 // 10 second timeout
+            maxTimeMS: 10000 
           }
         );
 

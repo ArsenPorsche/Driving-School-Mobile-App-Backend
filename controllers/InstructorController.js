@@ -1,25 +1,17 @@
 const InstructorService = require("../services/instructorService");
+const asyncHandler = require("../utils/asyncHandler");
+const { success } = require("../utils/responseHelper");
 
 class InstructorController {
-  static async getInstructors(req, res) {
-    try {
-      const instructors = await InstructorService.getInstructors();
-      res.json(instructors);
-    } catch (error) {
-      res.status(500).json({message: "Server error", error: error.message})
-    }
-  }
+  static getInstructors = asyncHandler(async (_req, res) => {
+    const instructors = await InstructorService.getInstructors();
+    success(res, instructors);
+  });
 
-  static async getInstructorRating(req, res) {
-    try {
-      const instructorId = req.user?._id;
-      const rating = await InstructorService.getInstructorRating(instructorId);
-      res.json(rating);
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
+  static getInstructorRating = asyncHandler(async (req, res) => {
+    const rating = await InstructorService.getInstructorRating(req.user._id);
+    success(res, rating);
+  });
 }
 
 module.exports = InstructorController;

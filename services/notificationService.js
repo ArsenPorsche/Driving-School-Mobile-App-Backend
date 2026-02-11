@@ -104,25 +104,20 @@ async function notifyLessonCanceledByStudent(lesson, student, instructor) {
 
     try {
       await Notification.create({
-        user: instructor._id,
-        instructor: student._id,
-        title,
-        body,
-        type: 'lesson_canceled',
-        data,
+        user: instructor._id, instructor: student._id,
+        title, body, type: 'lesson_canceled', data,
       });
-      
       try {
         const { sendSystemMessageFromNotification } = require("./chatService");
-        await sendSystemMessageFromNotification(student._id, instructor._id, body, { ...data, action: 'cancel' });
+        await sendSystemMessageFromNotification(student._id, instructor._id, 
+          body, { ...data, action: 'cancel' });
       } catch (chatErr) {
         console.log('Chat message error:', chatErr.message);
       }
     } catch (e) {
       console.log('Notification save error:', e.message);
     }
-
-    // Send push to instructor if tokens
+    
     if (instructor?.pushTokens?.length) {
       await sendToTokens(instructor.pushTokens, { title, body, data });
     }

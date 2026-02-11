@@ -1,10 +1,11 @@
 const Test = require("../models/Test");
+const AppError = require("../utils/AppError");
 
 class TestService {
   static async getCategories() {
     const topics = await Test.distinct("topic", { active: true });
-    
-    const topicsWithTests = await Promise.all(
+
+    return Promise.all(
       topics.map(async (topic) => {
         const test = await Test.findOne({ topic, active: true });
         return {
@@ -15,16 +16,11 @@ class TestService {
         };
       })
     );
-    
-    return topicsWithTests;
   }
 
   static async getTestByCategory(topic) {
     const test = await Test.findOne({ topic, active: true });
-    
-    if (!test) {
-      throw new Error("Questions not found for this topic");
-    }
+    if (!test) throw AppError.notFound("Questions not found for this topic");
 
     return {
       _id: test._id,

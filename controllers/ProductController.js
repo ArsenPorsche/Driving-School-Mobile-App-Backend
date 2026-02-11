@@ -1,197 +1,96 @@
 const ProductService = require("../services/productService");
+const asyncHandler = require("../utils/asyncHandler");
+const { success, created, message } = require("../utils/responseHelper");
 
 class ProductController {
-  static async getProducts(req, res) {
-    try {
-      const products = await ProductService.getActiveProducts();
-      res.json({ data: products });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
+  static getProducts = asyncHandler(async (_req, res) => {
+    const products = await ProductService.getActiveProducts();
+    success(res, products);
+  });
 
-  static async getAllProducts(req, res) {
-    try {
-      const products = await ProductService.getAllProducts();
-      res.json({ data: products });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
+  static getAllProducts = asyncHandler(async (_req, res) => {
+    const products = await ProductService.getAllProducts();
+    success(res, products);
+  });
 
-  static async getProductByCode(req, res) {
-    try {
-      const { code } = req.params;
-      const product = await ProductService.getProductByCode(code);
-      res.json(product);
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
+  static getProductByCode = asyncHandler(async (req, res) => {
+    const product = await ProductService.getProductByCode(req.params.code);
+    success(res, product);
+  });
 
-  static async createOrder(req, res) {
-    try {
-      const userId = req.user?._id;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+  static createOrder = asyncHandler(async (req, res) => {
+    const { order, addLessons, addExams, user } = await ProductService.createOrder(
+      req.user._id,
+      req.body.items
+    );
 
-      const { items } = req.body;
-      const { order, addLessons, addExams, user } = await ProductService.createOrder(userId, items);
+    success(res, {
+      message: "Order created successfully",
+      orderId: order._id,
+      totalPLN: order.totalMinor / 100,
+      addedLessons: addLessons,
+      addedExams: addExams,
+      purchasedLessons: user.purchasedLessons,
+      purchasedExams: user.purchasedExams,
+    });
+  });
 
-      res.json({
-        message: "Order created successfully",
-        orderId: order._id,
-        totalPLN: order.totalMinor / 100,
-        addedLessons: addLessons,
-        addedExams: addExams,
-        purchasedLessons: user.purchasedLessons,
-        purchasedExams: user.purchasedExams
-      });
-    } catch (error) {
-      const statusCode = error.message.includes("must be") || 
-                         error.message.includes("not found") ||
-                         error.message.includes("Quantity") ? 400 : 500;
-      res.status(statusCode).json({ error: error.message });
-    }
-  }
+  static getUserOrders = asyncHandler(async (req, res) => {
+    const orders = await ProductService.getUserOrders(req.user._id);
+    success(res, { orders });
+  });
 
-  static async getUserOrders(req, res) {
-    try {
-      const userId = req.user?._id;
-      
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+  static getOrderById = asyncHandler(async (req, res) => {
+    const order = await ProductService.getOrderById(req.params.orderId, req.user._id);
+    success(res, order);
+  });
 
-      const orders = await ProductService.getUserOrders(userId);
+  static getUserBalance = asyncHandler(async (req, res) => {
+    const balance = await ProductService.getUserBalance(req.user._id);
+    success(res, balance);
+  });
 
-      res.json({
-        orders
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  }
+  static createProduct = asyncHandler(async (req, res) => {
+    const { name, description, price, category, entitlements } = req.body;
 
+    const productData = {
+      code: `${category}_${Date.now()}`,
+      title: name,
+      description,
+      priceMinor: Math.round(price * 100),
+      category,
+      entitlements: entitlements.filter((e) => e.count > 0),
+      active: true,
+    };
 
-  static async getOrderById(req, res) {
-    try {
-      const userId = req.user?._id;
-      const { orderId } = req.params;
+    const product = await ProductService.createProduct(productData);
+    created(res, product);
+  });
 
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+  static updateProduct = asyncHandler(async (req, res) => {
+    const { name, description, price, category, entitlements } = req.body;
 
-      const order = await ProductService.getOrderById(orderId, userId);
-      res.json(order);
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ error: error.message });
-    }
-  }
+    const updates = {
+      title: name,
+      description,
+      priceMinor: Math.round(price * 100),
+      category,
+      entitlements: entitlements.filter((e) => e.count > 0),
+    };
 
-  static async getUserBalance(req, res) {
-    try {
-      const userId = req.user?._id;
-      
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+    const product = await ProductService.updateProduct(req.params.productId, updates);
+    success(res, product);
+  });
 
-      const balance = await ProductService.getUserBalance(userId);
-      res.json(balance);
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
+  static deleteProduct = asyncHandler(async (req, res) => {
+    await ProductService.deleteProduct(req.params.productId);
+    message(res, "Product deactivated successfully");
+  });
 
-  static async createProduct(req, res) {
-    try {
-      const { name, description, price, category, entitlements } = req.body;
-
-      if (!Array.isArray(entitlements) || entitlements.length === 0) {
-        return res.status(400).json({ message: "Entitlements must be non-empty array" });
-      }
-
-      for (const ent of entitlements) {
-        if (!['lesson','exam'].includes(ent.unit) || typeof ent.count !== 'number' || ent.count < 0) {
-          return res.status(400).json({ message: "Invalid entitlement entry" });
-        }
-      }
-
-      const productData = {
-        code: `${category}_${Date.now()}`,
-        title: name,
-        description,
-        priceMinor: Math.round(price * 100),
-        category,
-        entitlements: entitlements.filter(e => e.count > 0),
-        active: true
-      };
-
-      const product = await ProductService.createProduct(productData);
-      res.status(201).json({ data: product });
-    } catch (error) {
-      const statusCode = error.message.includes("already exists") ? 400 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
-
-  static async updateProduct(req, res) {
-    try {
-      const { productId } = req.params;
-      const { name, description, price, category, entitlements } = req.body;
-
-      if (!Array.isArray(entitlements) || entitlements.length === 0) {
-        return res.status(400).json({ message: "Entitlements must be non-empty array" });
-      }
-      for (const ent of entitlements) {
-        if (!['lesson','exam'].includes(ent.unit) || typeof ent.count !== 'number' || ent.count < 0) {
-          return res.status(400).json({ message: "Invalid entitlement entry" });
-        }
-      }
-
-      const updates = {
-        title: name,
-        description,
-        priceMinor: Math.round(price * 100),
-        category,
-        entitlements: entitlements.filter(e => e.count > 0)
-      };
-
-      const product = await ProductService.updateProduct(productId, updates);
-      res.json({ data: product });
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
-
-  static async deleteProduct(req, res) {
-    try {
-      const { productId } = req.params;
-      await ProductService.deleteProduct(productId);
-      res.json({ message: "Product deactivated successfully" });
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
-
-  static async activateProduct(req, res) {
-    try {
-      const { productId } = req.params;
-      await ProductService.restoreProduct(productId);
-      res.json({ message: "Product activated successfully" });
-    } catch (error) {
-      const statusCode = error.message.includes("not found") ? 404 : 500;
-      res.status(statusCode).json({ message: error.message });
-    }
-  }
+  static activateProduct = asyncHandler(async (req, res) => {
+    await ProductService.restoreProduct(req.params.productId);
+    message(res, "Product activated successfully");
+  });
 }
 
 module.exports = ProductController;
