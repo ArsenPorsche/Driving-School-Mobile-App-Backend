@@ -2,6 +2,8 @@
 
 Backend for a driving school management app. Handles authentication, lesson booking, payments, real-time chat, and push notifications.
 
+See also: [Frontend (Mobile App)](https://github.com/xsllq/driving-school-frontend)
+
 ## Tech Stack
 
 - Node.js
