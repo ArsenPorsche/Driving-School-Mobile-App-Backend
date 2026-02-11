@@ -77,10 +77,16 @@ admin - Manage users and products
 
 ## Screenshots
 Screenshots showing API testing in Postman and database collections in MongoDB Compass.
+
 <img width="935" height="481" alt="register_unathorized" src="https://github.com/user-attachments/assets/07d70f16-d411-4e42-a73d-44ab3c917467" />
+
 <img width="1252" height="810" alt="register_autorized" src="https://github.com/user-attachments/assets/316a56fe-ff5c-4011-a605-d720d890f28f" />
+
 <img width="1263" height="470" alt="booking_failed_2" src="https://github.com/user-attachments/assets/2c644e59-c24a-4dd3-8c1e-cecf9dcc4bb7" />
+
 <img width="768" height="501" alt="booking_failed" src="https://github.com/user-attachments/assets/2b8ab4bf-d636-497e-9868-57505207e6ac" />
+
 <img width="1267" height="949" alt="booking" src="https://github.com/user-attachments/assets/8dc3267b-5394-4919-b5f1-b7d359bb2a46" />
+
 <img width="1822" height="900" alt="image" src="https://github.com/user-attachments/assets/dc80fa00-d652-41e2-8aa2-970cbbdaa8ce" />
 
