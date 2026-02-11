@@ -2,7 +2,7 @@
 
 Backend for a driving school management app. Handles authentication, lesson booking, payments, real-time chat, and push notifications.
 
-See also: [Frontend (Mobile App)](https://github.com/xsllq/driving-school-frontend)
+See also: [Frontend (Mobile App)](https://github.com/xsllq/driving-school-frontend](https://github.com/ArsenPorsche/Driving-School-Mobile-App-Frontend)
 
 ## Tech Stack
 
